@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------
+// Better-Auth Core Models
+// ---------------------------------------------
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Custom Role Field
+  role          Role      @default(USER)
+
+  sessions      Session[]
+  accounts      Account[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Verification {
+  id         String    @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+}
+
+enum Role {
+  ADMIN
+  ENFORCER
+  CASHIER
+  VIEWER
+  USER
+}
+
+// ---------------------------------------------
+// MTOP Core Models
+// ---------------------------------------------
+
+model Franchise {
+  id              String      @id @default(cuid())
+  franchiseNo     String      @unique
+  status          String      @default("ACTIVE") // ACTIVE, SUSPENDED, REVOKED
+  issuedAt        DateTime    @default(now())
+  expiresAt       DateTime
+  
+  tricycles       Tricycle[]
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model Driver {
+  id              String      @id @default(cuid())
+  firstName       String
+  lastName        String
+  middleName      String?
+  licenseNo       String      @unique
+  address         String
+  contactNo       String
+  dateOfBirth     DateTime
+  
+  tricycles       Tricycle[]
+  violations      Violation[]
+  documents       Document[]
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model Tricycle {
+  id              String      @id @default(cuid())
+  make            String
+  model           String
+  color           String
+  plateNo         String      @unique
+  chassisNo       String      @unique
+  motorNo         String      @unique
+  
+  driverId        String
+  driver          Driver      @relation(fields: [driverId], references: [id])
+  
+  franchiseId     String
+  franchise       Franchise   @relation(fields: [franchiseId], references: [id])
+
+  permits         Permit[]
+  violations      Violation[]
+  documents       Document[]
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model Permit {
+  id              String      @id @default(cuid())
+  permitNo        String      @unique
+  status          String      @default("ACTIVE") // ACTIVE, EXPIRED, REVOKED
+  issuedAt        DateTime    @default(now())
+  expiresAt       DateTime
+  
+  tricycleId      String
+  tricycle        Tricycle    @relation(fields: [tricycleId], references: [id])
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+// ViolationType is customizable by admin
+model ViolationType {
+  id              String      @id @default(cuid())
+  code            String      @unique
+  description     String
+  fineAmount      Float
+  
+  violations      Violation[]
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model Violation {
+  id              String      @id @default(cuid())
+  ticketNo        String      @unique
+  remarks         String?
+  status          String      @default("UNPAID") // UNPAID, PAID, SETTLED
+  issuedAt        DateTime    @default(now())
+  
+  violationTypeId String
+  type            ViolationType @relation(fields: [violationTypeId], references: [id])
+  
+  driverId        String?
+  driver          Driver?     @relation(fields: [driverId], references: [id])
+  
+  tricycleId      String?
+  tricycle        Tricycle?   @relation(fields: [tricycleId], references: [id])
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model Document {
+  id              String      @id @default(cuid())
+  fileUrl         String
+  fileType        String      // IMAGE, PDF, etc.
+  documentType    String      // e.g., DRIVERS_LICENSE, OR_CR, CLEARANCE
+  
+  driverId        String?
+  driver          Driver?     @relation(fields: [driverId], references: [id])
+  
+  tricycleId      String?
+  tricycle        Tricycle?   @relation(fields: [tricycleId], references: [id])
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}

@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  mtop_db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mtop_db
+    ports:
+      - '5437:5432'
+    volumes:
+      - mtop_db_data:/var/lib/postgresql/data
+
+volumes:
+  mtop_db_data:
