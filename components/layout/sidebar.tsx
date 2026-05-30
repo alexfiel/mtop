@@ -45,9 +45,9 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t">
-        <Link href="/settings" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
+        <Link href="/settings/fees" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
           <Settings className="h-4 w-4" />
-          Settings
+          Settings (Fees)
         </Link>
       </div>
     </aside>
