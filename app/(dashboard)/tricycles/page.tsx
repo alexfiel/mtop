@@ -1,7 +1,10 @@
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { TricyclesWorkflow } from "./components/tricycles-workflow";
+import { getTricycles, getActiveDrivers } from "./actions";
 
-export default function TricyclesPage() {
+export default async function TricyclesPage() {
+  const tricycles = await getTricycles();
+  const drivers = await getActiveDrivers();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -11,16 +14,9 @@ export default function TricyclesPage() {
             Manage registered tricycles and MTOP permits.
           </p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Register Tricycle
-        </Button>
       </div>
       
-      {/* Table Placeholder */}
-      <div className="border rounded-md p-8 text-center text-muted-foreground bg-card">
-        Tricycles table will be implemented here.
-      </div>
+      <TricyclesWorkflow initialTricycles={tricycles} activeDrivers={drivers} />
     </div>
   );
 }
