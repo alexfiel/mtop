@@ -57,7 +57,7 @@ export function TricycleList({ tricycles }: { tricycles: any[] }) {
               <TableCell>
                 {hasAnyPhoto ? (
                   <Dialog>
-                    <DialogTrigger render={<div className="cursor-pointer hover:opacity-80 transition-opacity" />}>
+                    <DialogTrigger render={<button type="button" className="cursor-pointer hover:opacity-80 transition-opacity focus:outline-none" />}>
                       {frontPhoto ? (
                         <img src={frontPhoto.fileUrl} alt="Front View" className="w-16 h-12 object-cover rounded-md border" />
                       ) : (
