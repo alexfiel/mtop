@@ -114,15 +114,26 @@ export function LoginForm({
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2"
+                  strokeWidth="1.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="h-16 w-16 opacity-90 text-primary"
+                  className="h-16 w-16 text-primary"
                 >
-                  <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2" />
-                  <circle cx="7" cy="17" r="2" />
-                  <path d="M9 17h6" />
-                  <circle cx="17" cy="17" r="2" />
+                  <path d="M4 14 L5 5 C5 4 6 3 8 3 L16 3 C18 3 19 4 19 5 L20 14 Z" fill="currentColor" fillOpacity="0.1" />
+                  <path d="M4 14 L5 5 C5 4 6 3 8 3 L16 3 C18 3 19 4 19 5 L20 14 Z" />
+                  <path d="M4 14 L20 14 L19 18 L5 18 Z" fill="currentColor" fillOpacity="0.2"/>
+                  <path d="M4 14 L20 14 L19 18 L5 18 Z" />
+                  <path d="M6 10 L6.5 5.5 L17.5 5.5 L18 10 Z" fill="currentColor" fillOpacity="0.3" />
+                  <path d="M6 10 L6.5 5.5 L17.5 5.5 L18 10 Z" />
+                  <path d="M12 5.5 L12 10" />
+                  <circle cx="7" cy="16" r="1" fill="currentColor" />
+                  <circle cx="17" cy="16" r="1" fill="currentColor" />
+                  <circle cx="12" cy="15" r="1.5" fill="currentColor" />
+                  <path d="M11.5 18 L11.5 20 M12.5 18 L12.5 20" />
+                  <rect x="11" y="20" width="2" height="3" rx="1" fill="currentColor" />
+                  <rect x="3.5" y="17.5" width="1.5" height="3" rx="0.5" fill="currentColor" />
+                  <rect x="19" y="17.5" width="1.5" height="3" rx="0.5" fill="currentColor" />
+                  <path d="M7 3 L7 1 L17 1 L17 3" />
                 </svg>
               </div>
               <div className="space-y-2">
