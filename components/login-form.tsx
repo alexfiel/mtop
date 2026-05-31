@@ -33,6 +33,7 @@ export function LoginForm({
       const { data, error } = await authClient.signIn.email({
         email,
         password,
+        rememberMe: false,
       })
 
       if (error) {
@@ -42,6 +43,7 @@ export function LoginForm({
       }
 
       toast.success("Successfully logged in")
+      sessionStorage.setItem("mtop_session_active", "true");
       router.push("/")
       router.refresh()
     } catch (err) {

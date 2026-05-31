@@ -1,7 +1,9 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma, withAudit } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 export async function registerDriver(data: {
   firstName: string;
@@ -18,7 +20,10 @@ export async function registerDriver(data: {
   const { profilePicture, licensePicture, ...driverData } = data;
 
   try {
-    const driver = await prisma.driver.create({
+    const session = await auth.api.getSession({ headers: await headers() });
+    const db = withAudit(session?.user?.id);
+
+    const driver = await db.driver.create({
       data: {
         ...driverData,
         profilePicture: profilePicture || null,

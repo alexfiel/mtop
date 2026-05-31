@@ -1,7 +1,9 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma, withAudit } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 export async function createFranchiseApplication(data: {
   ownerName: string;
@@ -11,6 +13,9 @@ export async function createFranchiseApplication(data: {
   dateOfBirth: Date;
   isRenewal: boolean;
 }) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  const db = withAudit(session?.user?.id);
+  
   const year = new Date().getFullYear();
   const prefix = `TAG-MTOP-${year}-`;
   
@@ -36,7 +41,7 @@ export async function createFranchiseApplication(data: {
 
   const franchiseNo = `${prefix}${nextSequence.toString().padStart(4, "0")}`;
 
-  await prisma.franchise.create({
+  await db.franchise.create({
     data: {
       ...data,
       franchiseNo,
@@ -51,10 +56,13 @@ export async function updateFranchiseStatus(
   status: string,
   extraData?: { resolutionNo?: string; approvedOn?: Date; areaOfOperation?: string; expiresAt?: Date }
 ) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  const db = withAudit(session?.user?.id);
+  
   let expiresAt = extraData?.expiresAt;
 
   if (status === "APPROVED" && extraData?.approvedOn) {
-    const franchise = await prisma.franchise.findUnique({ where: { id } });
+    const franchise = await db.franchise.findUnique({ where: { id } });
     if (franchise) {
       const yearsToAdd = franchise.isRenewal ? 3 : 6;
       expiresAt = new Date(extraData.approvedOn);
@@ -62,7 +70,7 @@ export async function updateFranchiseStatus(
     }
   }
 
-  await prisma.franchise.update({
+  await db.franchise.update({
     where: { id },
     data: {
       status,
@@ -88,7 +96,10 @@ export async function recordFranchisePayment(data: {
   amount: number;
   orNumber: string;
 }) {
-  await prisma.$transaction(async (tx) => {
+  const session = await auth.api.getSession({ headers: await headers() });
+  const db = withAudit(session?.user?.id);
+
+  await db.$transaction(async (tx) => {
     // 1. Create a FranchiseTransaction for the payment
     await tx.franchiseTransaction.create({
       data: {

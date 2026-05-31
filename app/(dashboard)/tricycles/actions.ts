@@ -1,7 +1,9 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma, withAudit } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 export async function verifyFranchiseForRegistration(franchiseNo: string) {
   const franchise = await prisma.franchise.findUnique({
@@ -48,7 +50,10 @@ export async function registerTricycle(data: {
   franchiseId: string;
 }) {
   try {
-    await prisma.tricycle.create({
+    const session = await auth.api.getSession({ headers: await headers() });
+    const db = withAudit(session?.user?.id);
+
+    await db.tricycle.create({
       data: {
         ...data,
         status: "ACTIVE",
@@ -80,11 +85,14 @@ export async function getTricycles() {
 
 export async function assignDriversToTricycle(tricycleId: string, mainDriverId: string | null, extraDriverId: string | null) {
   try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    const db = withAudit(session?.user?.id);
+
     if (mainDriverId && extraDriverId && mainDriverId === extraDriverId) {
       return { success: false, error: "Main driver and Extra driver cannot be the same person." };
     }
 
-    await prisma.tricycle.update({
+    await db.tricycle.update({
       where: { id: tricycleId },
       data: {
         mainDriverId,

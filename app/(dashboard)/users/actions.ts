@@ -1,9 +1,11 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma, withAudit } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 const userSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -40,7 +42,10 @@ export async function createUser(data: z.infer<typeof createUserSchema>) {
 
     const hashedPassword = await bcrypt.hash(validated.password, 10);
 
-    await prisma.user.create({
+    const session = await auth.api.getSession({ headers: await headers() });
+    const db = withAudit(session?.user?.id);
+
+    await db.user.create({
       data: {
         name: validated.name,
         email: validated.email,
@@ -67,7 +72,10 @@ export async function updateUser(id: string, data: z.infer<typeof userSchema>) {
   try {
     const validated = userSchema.parse(data);
 
-    await prisma.user.update({
+    const session = await auth.api.getSession({ headers: await headers() });
+    const db = withAudit(session?.user?.id);
+
+    await db.user.update({
       where: { id },
       data: {
         name: validated.name,
@@ -123,7 +131,10 @@ export async function updateUserPassword(id: string, password: string) {
 
 export async function deleteUser(id: string) {
   try {
-    await prisma.user.delete({
+    const session = await auth.api.getSession({ headers: await headers() });
+    const db = withAudit(session?.user?.id);
+
+    await db.user.delete({
       where: { id },
     });
 

@@ -34,8 +34,6 @@ export const auth = betterAuth({
   },
   advanced: {
     defaultCookieAttributes: {
-      // By setting maxAge to null, the browser will treat it as a session cookie
-      // which means it will be cleared when the browser window is closed.
       maxAge: undefined,
     },
   },

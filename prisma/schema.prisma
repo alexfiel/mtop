@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   engineType = "library"
 }
 
@@ -22,8 +22,9 @@ model User {
   // Custom Role Field
   role Role @default(USER)
 
-  sessions Session[]
-  accounts Account[]
+  sessions  Session[]
+  accounts  Account[]
+  auditLogs AuditLog[]
 }
 
 model Session {
@@ -130,10 +131,10 @@ model Driver {
   status         String   @default("ACTIVE") // ACTIVE, SUSPENDED, REVOKED
   profilePicture String?
 
-  mainTricycles  Tricycle[] @relation("MainDriver")
-  extraTricycles Tricycle[] @relation("ExtraDriver")
-  violations Violation[]
-  documents  Document[]
+  mainTricycles  Tricycle[]  @relation("MainDriver")
+  extraTricycles Tricycle[]  @relation("ExtraDriver")
+  violations     Violation[]
+  documents      Document[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -150,9 +151,9 @@ model Tricycle {
   bodyNumber String @unique
   status     String @default("ACTIVE") // ACTIVE, SUSPENDED, REVOKED
 
-  mainDriverId  String?
-  mainDriver    Driver? @relation("MainDriver", fields: [mainDriverId], references: [id])
-  
+  mainDriverId String?
+  mainDriver   Driver? @relation("MainDriver", fields: [mainDriverId], references: [id])
+
   extraDriverId String?
   extraDriver   Driver? @relation("ExtraDriver", fields: [extraDriverId], references: [id])
 
@@ -231,12 +232,28 @@ model Document {
 }
 
 model FeeRule {
-  id              String   @id @default(cuid())
-  applicationType String   // "NEW", "RENEWAL", "RETIREMENT"
-  description     String   // e.g., "Mayor's Permit Fee", "Filing Fee", "Penalty"
+  id              String  @id @default(cuid())
+  applicationType String // "NEW", "RENEWAL", "RETIREMENT"
+  description     String // e.g., "Mayor's Permit Fee", "Filing Fee", "Penalty"
   amount          Float
-  isActive        Boolean  @default(true)
+  isActive        Boolean @default(true)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------
+// Universal Audit Log
+// ---------------------------------------------
+model AuditLog {
+  id       String @id @default(cuid())
+  entity   String // e.g. "Tricycle", "Driver", "Franchise"
+  entityId String // The ID of the record being changed
+  action   String // "CREATE", "UPDATE", "DELETE"
+  changes  String // JSON string of changes
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
 }

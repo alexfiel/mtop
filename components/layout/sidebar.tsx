@@ -59,6 +59,10 @@ export async function Sidebar() {
             <Users className="h-4 w-4" />
             Users Management
           </Link>
+          <Link href="/audit-logs" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
+            <FileText className="h-4 w-4" />
+            Audit Logs
+          </Link>
           <Link href="/settings/fees" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
             <Settings className="h-4 w-4" />
             Settings (Fees)

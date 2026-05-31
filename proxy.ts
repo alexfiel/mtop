@@ -40,7 +40,11 @@ export async function proxy(request: NextRequest) {
     }
 
     // Role-based route protection
-    const isAdminRoute = request.nextUrl.pathname.startsWith("/users") || request.nextUrl.pathname.startsWith("/settings");
+    const isAdminRoute = 
+      request.nextUrl.pathname.startsWith("/users") || 
+      request.nextUrl.pathname.startsWith("/settings") ||
+      request.nextUrl.pathname.startsWith("/audit-logs");
+      
     if (isAuthenticated && isAdminRoute && userRole !== "ADMIN") {
       return NextResponse.redirect(new URL("/", request.url));
     }

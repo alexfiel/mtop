@@ -25,6 +25,20 @@ export function Header() {
     const fetchSession = async () => {
       try {
         const { data } = await authClient.getSession();
+        
+        // Strict Tab-Close Logout Enforcement
+        if (data) {
+          const isSessionActive = sessionStorage.getItem("mtop_session_active");
+          if (!isSessionActive) {
+            // This is a new tab without inherited session storage, meaning 
+            // the previous tab was closed. Force a logout.
+            await authClient.signOut();
+            setSessionData(null);
+            router.push("/login");
+            return;
+          }
+        }
+        
         setSessionData(data);
       } catch (err) {
         console.error(err);
@@ -33,13 +47,14 @@ export function Header() {
       }
     };
     fetchSession();
-  }, []);
+  }, [router]);
   
   const user = sessionData?.user;
 
   const handleLogout = async () => {
     try {
       await authClient.signOut();
+      sessionStorage.removeItem("mtop_session_active");
       toast.success("Logged out successfully");
       router.push("/login");
       router.refresh();
