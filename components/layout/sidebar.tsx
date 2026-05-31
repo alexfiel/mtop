@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 import { 
   LayoutDashboard, 
   Users, 
@@ -8,7 +10,14 @@ import {
   Settings
 } from "lucide-react";
 
-export function Sidebar() {
+export async function Sidebar() {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
+  
+  // @ts-ignore - Custom fields in user object
+  const isAdmin = session?.user?.role === "ADMIN";
+
   return (
     <aside className="w-64 border-r bg-background flex flex-col h-screen fixed top-0 left-0">
       <div className="h-16 flex items-center px-6 border-b">
@@ -44,12 +53,18 @@ export function Sidebar() {
         </Link>
       </nav>
 
-      <div className="p-4 border-t">
-        <Link href="/settings/fees" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
-          <Settings className="h-4 w-4" />
-          Settings (Fees)
-        </Link>
-      </div>
+      {isAdmin && (
+        <div className="p-4 border-t space-y-2">
+          <Link href="/users" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
+            <Users className="h-4 w-4" />
+            Users Management
+          </Link>
+          <Link href="/settings/fees" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
+            <Settings className="h-4 w-4" />
+            Settings (Fees)
+          </Link>
+        </div>
+      )}
     </aside>
   );
 }

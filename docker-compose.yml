@@ -12,5 +12,14 @@ services:
     volumes:
       - mtop_db_data:/var/lib/postgresql/data
 
+  mailpit:
+    image: axllent/mailpit
+    restart: always
+    ports:
+      - "1025:1025" # SMTP port
+      - "8025:8025" # Web UI port
+    environment:
+      MP_MAX_MESSAGES: 5000
+
 volumes:
   mtop_db_data:
