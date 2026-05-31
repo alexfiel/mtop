@@ -127,3 +127,59 @@ export async function assignDriversToTricycle(tricycleId: string, mainDriverId: 
     return { success: false, error: error.message || "An unexpected error occurred." };
   }
 }
+
+export async function updateTricycle(id: string, data: {
+  make: string;
+  model: string;
+  color: string;
+  plateNo: string;
+  chassisNo: string;
+  motorNo: string;
+  bodyNumber: string;
+  frontPhoto?: string;
+  backPhoto?: string;
+  leftPhoto?: string;
+  rightPhoto?: string;
+}) {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    const db = withAudit(session?.user?.id);
+
+    await db.$transaction(async (tx) => {
+      await tx.tricycle.update({
+        where: { id },
+        data: {
+          make: data.make,
+          model: data.model,
+          color: data.color,
+          plateNo: data.plateNo,
+          chassisNo: data.chassisNo,
+          motorNo: data.motorNo,
+          bodyNumber: data.bodyNumber,
+        },
+      });
+
+      const updatePhoto = async (photoData: string | undefined, docType: string) => {
+        if (photoData) {
+          await tx.document.deleteMany({ where: { tricycleId: id, documentType: docType } });
+          await tx.document.create({
+            data: { fileUrl: photoData, fileType: "IMAGE", documentType: docType, tricycleId: id },
+          });
+        }
+      };
+
+      await updatePhoto(data.frontPhoto, "TRICYCLE_FRONT");
+      await updatePhoto(data.backPhoto, "TRICYCLE_BACK");
+      await updatePhoto(data.leftPhoto, "TRICYCLE_LEFT");
+      await updatePhoto(data.rightPhoto, "TRICYCLE_RIGHT");
+    });
+
+    revalidatePath("/tricycles");
+    return { success: true };
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      return { success: false, error: "A tricycle with this Plate Number, Chassis Number, or Motor Number already exists." };
+    }
+    return { success: false, error: error.message || "Failed to update tricycle." };
+  }
+}
