@@ -32,6 +32,22 @@ export function TricycleRegistration({ onSuccess }: { onSuccess?: () => void }) 
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const [frontPhoto, setFrontPhoto] = useState("");
+  const [backPhoto, setBackPhoto] = useState("");
+  const [leftPhoto, setLeftPhoto] = useState("");
+  const [rightPhoto, setRightPhoto] = useState("");
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setter(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const { register, handleSubmit, formState: { errors }, reset } = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
   });
@@ -69,6 +85,10 @@ export function TricycleRegistration({ onSuccess }: { onSuccess?: () => void }) 
       const result = await registerTricycle({
         ...values,
         franchiseId: verifiedFranchise.id,
+        frontPhoto,
+        backPhoto,
+        leftPhoto,
+        rightPhoto,
       });
 
       if (result?.error) {
@@ -80,6 +100,10 @@ export function TricycleRegistration({ onSuccess }: { onSuccess?: () => void }) 
       reset();
       setVerifiedFranchise(null);
       setSearchQuery("");
+      setFrontPhoto("");
+      setBackPhoto("");
+      setLeftPhoto("");
+      setRightPhoto("");
       if (onSuccess) onSuccess();
     } catch (e: any) {
       setSubmitError(e.message || "Failed to register tricycle. Make sure Plate No/Chassis No are unique.");
@@ -183,6 +207,60 @@ export function TricycleRegistration({ onSuccess }: { onSuccess?: () => void }) 
                   <Label>Motor Number</Label>
                   <Input placeholder="e.g. MOT123456789" {...register("motorNo")} />
                   {errors.motorNo && <p className="text-sm text-destructive">{errors.motorNo.message}</p>}
+                </div>
+              </div>
+              
+              <div className="pt-4 border-t mt-4">
+                <h4 className="font-semibold mb-4">Tricycle Photos (Optional)</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                  <div className="space-y-3">
+                    <Label>Front View</Label>
+                    <Input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setFrontPhoto)} className="text-xs" />
+                    {frontPhoto && (
+                      <div className="relative group rounded-md overflow-hidden border">
+                        <img src={frontPhoto} alt="Front View" className="w-full h-32 object-cover" />
+                        <button type="button" onClick={() => setFrontPhoto("")} className="absolute top-1 right-1 bg-destructive/80 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    <Label>Back View</Label>
+                    <Input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setBackPhoto)} className="text-xs" />
+                    {backPhoto && (
+                      <div className="relative group rounded-md overflow-hidden border">
+                        <img src={backPhoto} alt="Back View" className="w-full h-32 object-cover" />
+                        <button type="button" onClick={() => setBackPhoto("")} className="absolute top-1 right-1 bg-destructive/80 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    <Label>Left Side View</Label>
+                    <Input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setLeftPhoto)} className="text-xs" />
+                    {leftPhoto && (
+                      <div className="relative group rounded-md overflow-hidden border">
+                        <img src={leftPhoto} alt="Left Side" className="w-full h-32 object-cover" />
+                        <button type="button" onClick={() => setLeftPhoto("")} className="absolute top-1 right-1 bg-destructive/80 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    <Label>Right Side View</Label>
+                    <Input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setRightPhoto)} className="text-xs" />
+                    {rightPhoto && (
+                      <div className="relative group rounded-md overflow-hidden border">
+                        <img src={rightPhoto} alt="Right Side" className="w-full h-32 object-cover" />
+                        <button type="button" onClick={() => setRightPhoto("")} className="absolute top-1 right-1 bg-destructive/80 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end pt-4">

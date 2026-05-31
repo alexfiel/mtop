@@ -48,15 +48,35 @@ export async function registerTricycle(data: {
   motorNo: string;
   bodyNumber: string;
   franchiseId: string;
+  frontPhoto?: string;
+  backPhoto?: string;
+  leftPhoto?: string;
+  rightPhoto?: string;
 }) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
     const db = withAudit(session?.user?.id);
 
+    const documentsToCreate = [];
+    if (data.frontPhoto) documentsToCreate.push({ fileUrl: data.frontPhoto, fileType: "IMAGE", documentType: "TRICYCLE_FRONT" });
+    if (data.backPhoto) documentsToCreate.push({ fileUrl: data.backPhoto, fileType: "IMAGE", documentType: "TRICYCLE_BACK" });
+    if (data.leftPhoto) documentsToCreate.push({ fileUrl: data.leftPhoto, fileType: "IMAGE", documentType: "TRICYCLE_LEFT" });
+    if (data.rightPhoto) documentsToCreate.push({ fileUrl: data.rightPhoto, fileType: "IMAGE", documentType: "TRICYCLE_RIGHT" });
+
     await db.tricycle.create({
       data: {
-        ...data,
+        make: data.make,
+        model: data.model,
+        color: data.color,
+        plateNo: data.plateNo,
+        chassisNo: data.chassisNo,
+        motorNo: data.motorNo,
+        bodyNumber: data.bodyNumber,
+        franchiseId: data.franchiseId,
         status: "ACTIVE",
+        documents: documentsToCreate.length > 0 ? {
+          create: documentsToCreate,
+        } : undefined,
       },
     });
 
@@ -76,6 +96,7 @@ export async function getTricycles() {
       franchise: true,
       mainDriver: true,
       extraDriver: true,
+      documents: true,
     },
     orderBy: {
       bodyNumber: "asc",

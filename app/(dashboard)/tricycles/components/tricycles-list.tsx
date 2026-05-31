@@ -19,6 +19,7 @@ export function TricycleList({ tricycles }: { tricycles: any[] }) {
             <TableHead>Make & Model</TableHead>
             <TableHead>Franchise No.</TableHead>
             <TableHead>Main Driver</TableHead>
+            <TableHead>Photo</TableHead>
             <TableHead>Status</TableHead>
           </TableRow>
         </TableHeader>
@@ -40,6 +41,15 @@ export function TricycleList({ tricycles }: { tricycles: any[] }) {
                     <span className="text-sm text-slate-500">Extra: {tricycle.extraDriver.lastName}, {tricycle.extraDriver.firstName}</span>
                   )}
                 </div>
+              </TableCell>
+              <TableCell>
+                {(() => {
+                  const frontPhoto = tricycle.documents?.find((doc: any) => doc.documentType === "TRICYCLE_FRONT");
+                  if (frontPhoto) {
+                    return <img src={frontPhoto.fileUrl} alt="Front View" className="w-16 h-12 object-cover rounded-md border" />;
+                  }
+                  return <div className="w-16 h-12 bg-slate-100 flex items-center justify-center rounded-md border text-xs text-muted-foreground">N/A</div>;
+                })()}
               </TableCell>
               <TableCell>
                 <Badge variant={tricycle.status === "ACTIVE" ? "default" : "secondary"}>
