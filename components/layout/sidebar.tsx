@@ -1,74 +1,158 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { 
-  LayoutDashboard, 
-  Users, 
-  FileText, 
-  AlertTriangle, 
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  AlertTriangle,
   Car,
-  Settings
+  Settings,
+  ChevronRight
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  Sidebar as UiSidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
+} from "@/components/ui/sidebar";
 
 export async function Sidebar() {
   const session = await auth.api.getSession({
     headers: await headers()
   });
-  
+
   // @ts-ignore - Custom fields in user object
   const isAdmin = session?.user?.role === "ADMIN";
 
   return (
-    <aside className="w-64 border-r bg-background flex flex-col h-screen fixed top-0 left-0">
-      <div className="h-16 flex items-center px-6 border-b">
+    <UiSidebar>
+      <SidebarHeader className="h-16 flex items-center justify-center border-b">
         <h1 className="font-bold text-xl tracking-tight text-primary">MTOP System</h1>
-      </div>
-      
-      <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 px-2">Menu</div>
-        
-        <Link href="/" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
-          <LayoutDashboard className="h-4 w-4" />
-          Dashboard
-        </Link>
-        
-        <Link href="/drivers" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
-          <Users className="h-4 w-4" />
-          Drivers & Operators
-        </Link>
-        
-        <Link href="/franchises" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
-          <FileText className="h-4 w-4" />
-          Franchises
-        </Link>
+      </SidebarHeader>
 
-        <Link href="/tricycles" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
-          <Car className="h-4 w-4" />
-          Tricycles & Permits
-        </Link>
-        
-        <Link href="/violations" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
-          <AlertTriangle className="h-4 w-4" />
-          Violations
-        </Link>
-      </nav>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton render={
+                  <Link href="/">
+                    <LayoutDashboard />
+                    <span>Dashboard</span>
+                  </Link>
+                } />
+              </SidebarMenuItem>
 
-      {isAdmin && (
-        <div className="p-4 border-t space-y-2">
-          <Link href="/users" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
-            <Users className="h-4 w-4" />
-            Users Management
-          </Link>
-          <Link href="/audit-logs" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
-            <FileText className="h-4 w-4" />
-            Audit Logs
-          </Link>
-          <Link href="/settings/fees" className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted text-sm font-medium transition-colors">
-            <Settings className="h-4 w-4" />
-            Settings (Fees)
-          </Link>
-        </div>
-      )}
-    </aside>
+              <SidebarMenuItem>
+                <SidebarMenuButton render={
+                  <Link href="/drivers">
+                    <Users />
+                    <span>Drivers & Operators</span>
+                  </Link>
+                } />
+              </SidebarMenuItem>
+
+              <Collapsible defaultOpen className="group/collapsible">
+                <SidebarMenuItem>
+                  <CollapsibleTrigger render={
+                    <SidebarMenuButton>
+                      <FileText />
+                      <span>Franchises</span>
+                      <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90 group-data-[panel-open]/collapsible:rotate-90" />
+                    </SidebarMenuButton>
+                  } />
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton render={<Link href="/franchises"><span>List of Franchises</span></Link>} />
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton render={<Link href="/franchises/new-application"><span>New Application</span></Link>} />
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton render={<Link href="/franchises/renewal"><span>Renewal</span></Link>} />
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton render={<Link href="/franchises/dropping"><span>Dropping</span></Link>} />
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton render={<Link href="/franchises/reports"><span>Reports</span></Link>} />
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton render={
+                  <Link href="/tricycles">
+                    <Car />
+                    <span>Tricycles & Permits</span>
+                  </Link>
+                } />
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton render={
+                  <Link href="/violations">
+                    <AlertTriangle />
+                    <span>Violations</span>
+                  </Link>
+                } />
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Admin</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton render={
+                    <Link href="/users">
+                      <Users />
+                      <span>Users Management</span>
+                    </Link>
+                  } />
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton render={
+                    <Link href="/audit-logs">
+                      <FileText />
+                      <span>Audit Logs</span>
+                    </Link>
+                  } />
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton render={
+                    <Link href="/settings/fees">
+                      <Settings />
+                      <span>Settings (Fees)</span>
+                    </Link>
+                  } />
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+      </SidebarContent>
+    </UiSidebar>
   );
 }

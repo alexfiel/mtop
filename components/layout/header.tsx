@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -65,7 +66,9 @@ export function Header() {
 
   return (
     <header className="h-16 border-b bg-background flex items-center justify-between px-6 sticky top-0 z-10 w-full">
-      <div className="flex-1" />
+      <div className="flex items-center gap-4 flex-1">
+        <SidebarTrigger />
+      </div>
       
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon">
