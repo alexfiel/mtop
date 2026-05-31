@@ -1,7 +1,20 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, FileText, AlertTriangle, Activity } from "lucide-react";
+import { prisma } from "@/lib/prisma";
 
-export default function Dashboard() {
+export default async function Dashboard() {
+  const [
+    totalDrivers,
+    activeFranchises,
+    pendingRenewals,
+    unpaidViolations,
+  ] = await Promise.all([
+    prisma.driver.count(),
+    prisma.franchise.count({ where: { status: "ACTIVE" } }),
+    prisma.franchise.count({ where: { isRenewal: true, status: "PENDING" } }),
+    prisma.violation.count({ where: { status: "UNPAID" } }),
+  ]);
+
   return (
     <div className="space-y-8">
       <div>
@@ -18,8 +31,8 @@ export default function Dashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,248</div>
-            <p className="text-xs text-muted-foreground">+12% from last month</p>
+            <div className="text-2xl font-bold">{totalDrivers.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">All time registered drivers</p>
           </CardContent>
         </Card>
         <Card>
@@ -28,8 +41,8 @@ export default function Dashboard() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">850</div>
-            <p className="text-xs text-muted-foreground">+4% from last month</p>
+            <div className="text-2xl font-bold">{activeFranchises.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Currently active MTOP franchises</p>
           </CardContent>
         </Card>
         <Card>
@@ -38,18 +51,18 @@ export default function Dashboard() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-500">34</div>
-            <p className="text-xs text-muted-foreground">Requires immediate attention</p>
+            <div className="text-2xl font-bold text-amber-500">{pendingRenewals.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Requires immediate review</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Violations</CardTitle>
+            <CardTitle className="text-sm font-medium">Unpaid Violations</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">12</div>
-            <p className="text-xs text-muted-foreground">Issued in the last 7 days</p>
+            <div className="text-2xl font-bold text-destructive">{unpaidViolations.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Awaiting settlement</p>
           </CardContent>
         </Card>
       </div>
@@ -60,18 +73,19 @@ export default function Dashboard() {
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-sm text-muted-foreground">
-              Activity chart will be placed here.
+            <div className="text-sm text-muted-foreground flex items-center justify-center h-48 border rounded-md border-dashed">
+              Activity chart module pending integration.
             </div>
           </CardContent>
         </Card>
         <Card className="col-span-3">
           <CardHeader>
-            <CardTitle>Recent Registrations</CardTitle>
+            <CardTitle>System Information</CardTitle>
           </CardHeader>
           <CardContent>
-             <div className="text-sm text-muted-foreground">
-              List of recently registered drivers and tricycles will be placed here.
+             <div className="text-sm text-muted-foreground flex flex-col items-center justify-center h-48 border rounded-md border-dashed p-6 text-center space-y-2">
+                <p><strong>MTOP Management System</strong></p>
+                <p>All core modules (Drivers, Franchises, Tricycles, Users) are active and auditing transactions.</p>
              </div>
           </CardContent>
         </Card>
