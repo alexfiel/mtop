@@ -67,7 +67,10 @@ model Verification {
 
 enum Role {
   ADMIN
+  SECRETARY
   ENFORCER
+  INSPECTOR
+  CLERK
   CASHIER
   VIEWER
   USER
@@ -76,6 +79,69 @@ enum Role {
 // ---------------------------------------------
 // MTOP Core Models
 // ---------------------------------------------
+
+enum FranchiseStatus {
+  PENDING
+  FOR_SP_APPROVAL
+  APPROVED
+  PUBLISHED
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+enum TricycleStatus {
+  PENDING
+  FOR_SP_APPROVAL
+  APPROVED
+  PUBLISHED
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+model DriverStatus {
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+model PermitStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum ApplicationStatus {
+  PENDING
+  FOR_SP_APPROVAL
+  APPROVED
+  PUBLISHED
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+enum PaymentStatus {
+  PAID
+  UNPAID
+}
+
+model DocumentType {
+  NEW_APPLICATION = "NEW_APPLICATION"
+  RENEWAL = "RENEWAL"
+  RETIREMENT = "RETIREMENT"
+}
+
+model BodyNumber {
+  bodyNumber Int @id
+  franchiseId String
+  franchise Franchise @relation(fields: [franchiseId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
 
 model Franchise {
   id          String   @id @default(cuid())
@@ -97,6 +163,8 @@ model Franchise {
   expiresAt DateTime?
 
   tricycle Tricycle?
+
+  bodyNumber BodyNumber?
 
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
