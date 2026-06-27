@@ -9,6 +9,7 @@ export default async function FranchiseCertificate({ params }: { params: Promise
   const franchise = await prisma.franchise.findUnique({
     where: { id },
     include: {
+      tricycle: true,
       franchiseTransactions: {
         where: { transactionType: "FRANCHISE_FEE", paymentStatus: "PAID" },
         orderBy: { paymentDate: "desc" },
@@ -68,6 +69,30 @@ export default async function FranchiseCertificate({ params }: { params: Promise
               <span className="block text-sm text-muted-foreground uppercase font-semibold">Expiry Date</span>
               <span className="text-xl font-bold">{format(new Date(franchise.expiresAt), "MMMM d, yyyy")}</span>
             </div>
+          )}
+          {franchise.tricycle && (
+            <>
+              <div>
+                <span className="block text-sm text-muted-foreground uppercase font-semibold">Tricycle Model</span>
+                <span className="text-xl font-bold">{franchise.tricycle.make} {franchise.tricycle.model}</span>
+              </div>
+              <div>
+                <span className="block text-sm text-muted-foreground uppercase font-semibold">Body Number</span>
+                <span className="text-xl font-bold">{franchise.tricycle.bodyNumber}</span>
+              </div>
+              <div>
+                <span className="block text-sm text-muted-foreground uppercase font-semibold">Color</span>
+                <span className="text-xl font-bold">{franchise.tricycle.color}</span>
+              </div>
+              <div>
+                <span className="block text-sm text-muted-foreground uppercase font-semibold">Chassis No.</span>
+                <span className="text-xl font-bold">{franchise.tricycle.chassisNo}</span>
+              </div>
+              <div>
+                <span className="block text-sm text-muted-foreground uppercase font-semibold">Engine No.</span>
+                <span className="text-xl font-bold">{franchise.tricycle.motorNo}</span>
+              </div>
+            </>
           )}
         </div>
 

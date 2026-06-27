@@ -12,43 +12,95 @@ export async function createFranchiseApplication(data: {
   email: string;
   dateOfBirth: Date;
   isRenewal: boolean;
+  tricycle: {
+    make: string;
+    model: string;
+    color: string;
+    plateNo: string;
+    chassisNo: string;
+    motorNo: string;
+    bodyNumber: string;
+  };
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  const db = withAudit(session?.user?.id);
-  
-  const year = new Date().getFullYear();
-  const prefix = `TAG-MTOP-${year}-`;
-  
-  const lastFranchise = await prisma.franchise.findFirst({
-    where: {
-      franchiseNo: {
-        startsWith: prefix,
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    const db = withAudit(session?.user?.id);
+    
+    const year = new Date().getFullYear();
+    const prefix = `TAG-MTOP-${year}-`;
+    
+    const lastFranchise = await prisma.franchise.findFirst({
+      where: {
+        franchiseNo: {
+          startsWith: prefix,
+        },
       },
-    },
-    orderBy: {
-      franchiseNo: 'desc',
-    },
-  });
+      orderBy: {
+        franchiseNo: 'desc',
+      },
+    });
 
-  let nextSequence = 1;
-  if (lastFranchise) {
-    const lastSequenceStr = lastFranchise.franchiseNo.replace(prefix, "");
-    const lastSequenceNum = parseInt(lastSequenceStr, 10);
-    if (!isNaN(lastSequenceNum)) {
-      nextSequence = lastSequenceNum + 1;
+    let nextSequence = 1;
+    if (lastFranchise) {
+      const lastSequenceStr = lastFranchise.franchiseNo.replace(prefix, "");
+      const lastSequenceNum = parseInt(lastSequenceStr, 10);
+      if (!isNaN(lastSequenceNum)) {
+        nextSequence = lastSequenceNum + 1;
+      }
     }
+
+    const franchiseNo = `${prefix}${nextSequence.toString().padStart(4, "0")}`;
+
+    await db.$transaction(async (tx) => {
+      const franchise = await tx.franchise.create({
+        data: {
+          ownerName: data.ownerName,
+          address: data.address,
+          contactNo: data.contactNo,
+          email: data.email,
+          dateOfBirth: data.dateOfBirth,
+          isRenewal: data.isRenewal,
+          franchiseNo,
+          status: "PENDING",
+        },
+      });
+
+      await tx.tricycle.create({
+        data: {
+          make: data.tricycle.make,
+          model: data.tricycle.model,
+          color: data.tricycle.color,
+          plateNo: data.tricycle.plateNo,
+          chassisNo: data.tricycle.chassisNo,
+          motorNo: data.tricycle.motorNo,
+          bodyNumber: data.tricycle.bodyNumber,
+          franchiseId: franchise.id,
+        },
+      });
+
+      const bodyNumInt = parseInt(data.tricycle.bodyNumber, 10);
+      if (!isNaN(bodyNumInt)) {
+        await tx.bodyNumber.update({
+          where: { bodyNumber: bodyNumInt },
+          data: { franchiseId: franchise.id },
+        });
+      }
+    });
+
+    revalidatePath("/franchises");
+    revalidatePath("/body-numbers");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error creating franchise application:", error);
+    if (error?.code === "P2002") {
+      const target = error.meta?.target as string[];
+      if (target?.includes("email")) {
+        return { error: "This email address is already in use.", field: "email" };
+      }
+      return { error: "A franchise with this unique information already exists." };
+    }
+    return { error: "Failed to submit application. Please try again." };
   }
-
-  const franchiseNo = `${prefix}${nextSequence.toString().padStart(4, "0")}`;
-
-  await db.franchise.create({
-    data: {
-      ...data,
-      franchiseNo,
-      status: "PENDING",
-    },
-  });
-  revalidatePath("/franchises");
 }
 
 export async function updateFranchiseStatus(
@@ -64,7 +116,7 @@ export async function updateFranchiseStatus(
   if (status === "APPROVED" && extraData?.approvedOn) {
     const franchise = await db.franchise.findUnique({ where: { id } });
     if (franchise) {
-      const yearsToAdd = franchise.isRenewal ? 3 : 6;
+      const yearsToAdd = 3; // Both New and Renewal expire in 3 years
       expiresAt = new Date(extraData.approvedOn);
       expiresAt.setFullYear(expiresAt.getFullYear() + yearsToAdd);
     }
@@ -88,6 +140,13 @@ export async function getFranchises(status?: string) {
       tricycle: true,
     },
     orderBy: { ownerName: "asc" },
+  });
+}
+
+export async function getUnassignedBodyNumbers() {
+  return await prisma.bodyNumber.findMany({
+    where: { franchiseId: null },
+    orderBy: { bodyNumber: "asc" },
   });
 }
 

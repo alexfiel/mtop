@@ -8,15 +8,20 @@ const getTransporter = async () => {
   }
 
   // Production configuration using your environment variables
-  return nodemailer.createTransport({
+  const options: any = {
     host: process.env.SMTP_HOST || "",
     port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === "true", 
-    auth: {
-      user: process.env.SMTP_USER || "",
+    secure: process.env.SMTP_SECURE === "true",
+  };
+
+  if (process.env.SMTP_USER) {
+    options.auth = {
+      user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS || "",
-    },
-  });
+    };
+  }
+
+  return nodemailer.createTransport(options);
 };
 
 export const sendVerificationEmail = async (to: string, url: string) => {

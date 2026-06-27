@@ -1,8 +1,9 @@
-import { getFranchises } from "./actions";
+import { getFranchises, getUnassignedBodyNumbers } from "./actions";
 import { FranchiseWorkflow } from "./components/franchise-workflow";
 
 export default async function FranchisesPage() {
   const franchises = await getFranchises();
+  const unassignedBodyNumbers = await getUnassignedBodyNumbers();
 
   return (
     <div className="space-y-6">
@@ -15,7 +16,10 @@ export default async function FranchisesPage() {
         </div>
       </div>
       
-      <FranchiseWorkflow initialFranchises={franchises} />
+      <FranchiseWorkflow 
+        initialFranchises={franchises} 
+        unassignedBodyNumbers={unassignedBodyNumbers}
+      />
     </div>
   );
 }

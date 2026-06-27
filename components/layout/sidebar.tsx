@@ -8,7 +8,8 @@ import {
   AlertTriangle,
   Car,
   Settings,
-  ChevronRight
+  ChevronRight,
+  Hash
 } from "lucide-react";
 import {
   Collapsible,
@@ -106,6 +107,15 @@ export async function Sidebar() {
                   <Link href="/tricycles">
                     <Car />
                     <span>Tricycles & Permits</span>
+                  </Link>
+                } />
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton render={
+                  <Link href="/body-numbers">
+                    <Hash />
+                    <span>Body Numbers</span>
                   </Link>
                 } />
               </SidebarMenuItem>

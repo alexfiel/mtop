@@ -25,10 +25,12 @@ export function RegisterForm({
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [emailError, setEmailError] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setEmailError("")
 
     try {
       const { data, error } = await authClient.signUp.email({
@@ -39,13 +41,23 @@ export function RegisterForm({
       })
 
       if (error) {
-        toast.error(error.message || "Failed to register")
+        if (error.code === "USER_ALREADY_EXISTS") {
+          setEmailError("This email is already registered")
+        } else {
+          toast.error(error.message || "Failed to register")
+        }
         setIsLoading(false)
         return
       }
 
-      toast.success("Successfully registered! You are now logged in.")
-      router.push("/")
+      if (!data || !data.user) {
+        toast.error("Failed to save user to the database. Please try again.")
+        setIsLoading(false)
+        return
+      }
+
+      toast.success("Successfully registered! Please check your email to verify your account.")
+      router.push("/login")
       router.refresh()
     } catch (err) {
       toast.error("Something went wrong")
@@ -86,10 +98,14 @@ export function RegisterForm({
                   placeholder="user@example.com"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    setEmailError("")
+                  }}
                   disabled={isLoading}
-                  className="h-11"
+                  className={cn("h-11", emailError && "border-destructive focus-visible:ring-destructive")}
                 />
+                {emailError && <p className="text-sm text-destructive mt-1">{emailError}</p>}
               </Field>
               <Field>
                 <div className="flex items-center">

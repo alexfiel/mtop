@@ -1,10 +1,8 @@
-"use client";
-
 import { ApplicationForm } from "../components/application-form";
-import { useRouter } from "next/navigation";
+import { getUnassignedBodyNumbers } from "../actions";
 
-export default function NewFranchiseApplicationPage() {
-  const router = useRouter();
+export default async function NewFranchiseApplicationPage() {
+  const unassignedBodyNumbers = await getUnassignedBodyNumbers();
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -16,10 +14,7 @@ export default function NewFranchiseApplicationPage() {
       </div>
       
       <div className="mt-8">
-        <ApplicationForm onSuccess={() => {
-          router.push("/franchises");
-          router.refresh();
-        }} />
+        <ApplicationForm unassignedBodyNumbers={unassignedBodyNumbers} />
       </div>
     </div>
   );

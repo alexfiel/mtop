@@ -9,7 +9,13 @@ import type { Franchise } from "@prisma/client";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 
-export function FranchiseWorkflow({ initialFranchises }: { initialFranchises: Franchise[] }) {
+export function FranchiseWorkflow({ 
+  initialFranchises, 
+  unassignedBodyNumbers 
+}: { 
+  initialFranchises: Franchise[];
+  unassignedBodyNumbers: any[];
+}) {
   const [activeTab, setActiveTab] = useState("pending");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -50,7 +56,10 @@ export function FranchiseWorkflow({ initialFranchises }: { initialFranchises: Fr
         </TabsList>
       
       <TabsContent value="new" className="mt-4">
-        <ApplicationForm onSuccess={() => setActiveTab("pending")} />
+        <ApplicationForm 
+          unassignedBodyNumbers={unassignedBodyNumbers} 
+          onSuccess={() => setActiveTab("pending")} 
+        />
       </TabsContent>
       
       <TabsContent value="pending" className="mt-4">

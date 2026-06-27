@@ -100,13 +100,13 @@ enum TricycleStatus {
   REVOKED
 }
 
-model DriverStatus {
+enum DriverStatus {
   ACTIVE
   SUSPENDED
   REVOKED
 }
 
-model PermitStatus {
+enum PermitStatus {
   ACTIVE
   EXPIRED
   REVOKED
@@ -127,16 +127,16 @@ enum PaymentStatus {
   UNPAID
 }
 
-model DocumentType {
-  NEW_APPLICATION = "NEW_APPLICATION"
-  RENEWAL = "RENEWAL"
-  RETIREMENT = "RETIREMENT"
+enum DocumentType {
+  NEW_APPLICATION
+  RENEWAL
+  RETIREMENT
 }
 
 model BodyNumber {
   bodyNumber Int @id
-  franchiseId String
-  franchise Franchise @relation(fields: [franchiseId], references: [id])
+  franchiseId String? @unique
+  franchise Franchise? @relation(fields: [franchiseId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -325,3 +325,17 @@ model AuditLog {
 
   createdAt DateTime @default(now())
 }
+
+model ItemAccounts {
+  id              String  @id @default(cuid())
+  account_name    String
+  account_number  String  @unique
+  default_amount  Float   @default(0)
+  isActive        Boolean @default(true)
+  fundtype        String  //General Fund, Trust Fund, Motorized Vehicle Fund
+  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
