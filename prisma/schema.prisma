@@ -82,6 +82,8 @@ enum Role {
 
 enum FranchiseStatus {
   PENDING
+  FOR_BILLING
+  FOR_PAYMENT
   FOR_SP_APPROVAL
   APPROVED
   PUBLISHED

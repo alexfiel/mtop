@@ -161,6 +161,14 @@ export async function Sidebar() {
                     </Link>
                   } />
                 </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton render={
+                    <Link href="/financial">
+                      <Settings />
+                      <span>Financial Settings</span>
+                    </Link>
+                  } />
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

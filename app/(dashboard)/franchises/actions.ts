@@ -171,12 +171,36 @@ export async function recordFranchisePayment(data: {
       },
     });
 
-    // 2. Update Franchise status to ACTIVE
+    // 2. Update Franchise status to FOR_SP_APPROVAL
     await tx.franchise.update({
       where: { id: data.franchiseId },
-      data: { status: "ACTIVE" },
+      data: { status: "FOR_SP_APPROVAL" },
     });
   });
 
   revalidatePath("/franchises");
+}
+
+export async function searchFranchiseForRenewal(franchiseNo: string) {
+  const franchise = await prisma.franchise.findUnique({
+    where: { franchiseNo },
+    include: { tricycle: true }
+  });
+  return franchise;
+}
+
+export async function processFranchiseRenewal(id: string) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  const db = withAudit(session?.user?.id);
+
+  const franchise = await db.franchise.update({
+    where: { id },
+    data: {
+      status: "FOR_BILLING",
+      isRenewal: true,
+    }
+  });
+
+  revalidatePath("/franchises");
+  return franchise;
 }

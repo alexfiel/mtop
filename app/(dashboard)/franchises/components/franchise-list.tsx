@@ -18,18 +18,39 @@ import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BillingModal } from "./billing-modal";
 
 interface FranchiseListProps {
   franchises: (Franchise & { tricycle?: Tricycle | null })[];
-  type: "pending" | "sp" | "approved" | "active";
+  type: "pending" | "billing" | "payment" | "sp" | "approved" | "active";
 }
 
 export function FranchiseList({ franchises, type }: FranchiseListProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isSPModalOpen, setIsSPModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedBillingFranchise, setSelectedBillingFranchise] = useState<any>(null);
   const [spData, setSpData] = useState({ resolutionNo: "", approvedOn: "", areaOfOperation: "" });
   const [paymentData, setPaymentData] = useState({ amount: "", orNumber: "" });
+
+  const openPaymentModal = async (franchise: any) => {
+    setSelectedId(franchise.id);
+    setPaymentData({ amount: "Loading...", orNumber: "" });
+    setIsPaymentModalOpen(true);
+    
+    try {
+      const res = await fetch(`/api/franchises/${franchise.id}/bill`);
+      const responseData = await res.json();
+      if (responseData.success && responseData.data.totalAmount !== undefined) {
+        setPaymentData(prev => ({ ...prev, amount: responseData.data.totalAmount.toString() }));
+      } else {
+        setPaymentData(prev => ({ ...prev, amount: "" }));
+      }
+    } catch (e) {
+      console.error(e);
+      setPaymentData(prev => ({ ...prev, amount: "" }));
+    }
+  };
 
   const handleAction = async (id: string, newStatus: string, extraData?: any) => {
     try {
@@ -61,7 +82,7 @@ export function FranchiseList({ franchises, type }: FranchiseListProps) {
         amount: parseFloat(paymentData.amount),
         orNumber: paymentData.orNumber,
       });
-      toast.success("Payment recorded and certificate unlocked.");
+      toast.success("Payment recorded successfully.");
       setIsPaymentModalOpen(false);
     } catch (e) {
       toast.error("Failed to record payment.");
@@ -112,8 +133,21 @@ export function FranchiseList({ franchises, type }: FranchiseListProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   {type === "pending" && (
-                    <Button size="sm" onClick={() => handleAction(franchise.id, "FOR_SP_APPROVAL")}>
-                      Send to SP
+                    <Button size="sm" onClick={() => handleAction(franchise.id, "FOR_BILLING")}>
+                      Send to Billing
+                    </Button>
+                  )}
+                  {type === "billing" && (
+                    <Button size="sm" onClick={() => setSelectedBillingFranchise(franchise)}>
+                      Create Bill
+                    </Button>
+                  )}
+                  {type === "payment" && (
+                    <Button 
+                      size="sm" 
+                      onClick={() => openPaymentModal(franchise)}
+                    >
+                      Record Payment
                     </Button>
                   )}
                   {type === "sp" && (
@@ -135,13 +169,9 @@ export function FranchiseList({ franchises, type }: FranchiseListProps) {
                   {type === "active" && franchise.status === "PUBLISHED" && (
                     <Button 
                       size="sm" 
-                      onClick={() => {
-                        setSelectedId(franchise.id);
-                        setPaymentData({ amount: "", orNumber: "" });
-                        setIsPaymentModalOpen(true);
-                      }}
+                      onClick={() => handleAction(franchise.id, "ACTIVE")}
                     >
-                      Record Payment
+                      Issue Certificate
                     </Button>
                   )}
                   {type === "active" && franchise.status === "ACTIVE" && (
@@ -213,12 +243,13 @@ export function FranchiseList({ franchises, type }: FranchiseListProps) {
               <Input
                 type="number"
                 value={paymentData.amount}
-                onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+                readOnly
+                className="bg-muted"
                 placeholder="e.g. 1500"
               />
             </div>
             <p className="text-sm text-muted-foreground mt-4">
-              Recording this payment will unlock the Franchise Certificate for printing.
+              Recording this payment will forward the application for SP Approval.
             </p>
           </div>
           <DialogFooter>
@@ -227,6 +258,18 @@ export function FranchiseList({ franchises, type }: FranchiseListProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      <BillingModal 
+        isOpen={!!selectedBillingFranchise}
+        onClose={() => setSelectedBillingFranchise(null)}
+        franchise={selectedBillingFranchise}
+        onSuccess={() => {
+          if (selectedBillingFranchise) {
+            handleAction(selectedBillingFranchise.id, "FOR_PAYMENT");
+            setSelectedBillingFranchise(null);
+          }
+        }}
+      />
     </>
   );
 }
