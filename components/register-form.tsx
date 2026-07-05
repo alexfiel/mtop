@@ -56,7 +56,7 @@ export function RegisterForm({
         return
       }
 
-      toast.success("Successfully registered! Please check your email to verify your account.")
+      toast.success("Successfully registered! Please login.")
       router.push("/login")
       router.refresh()
     } catch (err) {

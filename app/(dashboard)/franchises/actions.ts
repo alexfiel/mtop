@@ -171,10 +171,10 @@ export async function recordFranchisePayment(data: {
       },
     });
 
-    // 2. Update Franchise status to FOR_SP_APPROVAL
+    // 2. Update Franchise status to ACTIVE
     await tx.franchise.update({
       where: { id: data.franchiseId },
-      data: { status: "FOR_SP_APPROVAL" },
+      data: { status: "ACTIVE" },
     });
   });
 

@@ -30,10 +30,10 @@ export function FranchiseWorkflow({
 
   const pending = filteredFranchises.filter((f) => f.status === "PENDING");
   const forBilling = filteredFranchises.filter((f) => f.status === "FOR_BILLING");
-  const forPayment = filteredFranchises.filter((f) => f.status === "FOR_PAYMENT");
   const forApproval = filteredFranchises.filter((f) => f.status === "FOR_SP_APPROVAL");
   const approved = filteredFranchises.filter((f) => f.status === "APPROVED");
-  const published = filteredFranchises.filter((f) => f.status === "PUBLISHED" || f.status === "ACTIVE");
+  const published = filteredFranchises.filter((f) => f.status === "PUBLISHED");
+  const active = filteredFranchises.filter((f) => f.status === "ACTIVE");
 
   return (
     <div className="space-y-4">
@@ -51,14 +51,14 @@ export function FranchiseWorkflow({
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-8 mb-8">
-          <TabsTrigger value="new">New Application</TabsTrigger>
+          <TabsTrigger value="new">New</TabsTrigger>
           <TabsTrigger value="renewal">Renewal</TabsTrigger>
-          <TabsTrigger value="pending">Pending ({pending.length})</TabsTrigger>
-          <TabsTrigger value="billing">Billing ({forBilling.length})</TabsTrigger>
-          <TabsTrigger value="payment">Payment ({forPayment.length})</TabsTrigger>
-          <TabsTrigger value="sp">SP Approval ({forApproval.length})</TabsTrigger>
-          <TabsTrigger value="approved">Publication ({approved.length})</TabsTrigger>
-          <TabsTrigger value="active">Certificates ({published.length})</TabsTrigger>
+          <TabsTrigger value="pending">Phase 1: Receipt ({pending.length})</TabsTrigger>
+          <TabsTrigger value="billing">Phase 2: Billing ({forBilling.length})</TabsTrigger>
+          <TabsTrigger value="sp">Phases 3-5: SP Approval ({forApproval.length})</TabsTrigger>
+          <TabsTrigger value="approved">Phase 6: Publication ({approved.length})</TabsTrigger>
+          <TabsTrigger value="payment">Phase 7: Payment ({published.length})</TabsTrigger>
+          <TabsTrigger value="active">Certificates ({active.length})</TabsTrigger>
         </TabsList>
       
       <TabsContent value="new" className="mt-4">
@@ -69,7 +69,7 @@ export function FranchiseWorkflow({
       </TabsContent>
 
       <TabsContent value="renewal" className="mt-4">
-        <FranchiseRenewal onSuccess={() => setActiveTab("payment")} />
+        <FranchiseRenewal onSuccess={() => setActiveTab("sp")} />
       </TabsContent>
       
       <TabsContent value="pending" className="mt-4">
@@ -78,10 +78,6 @@ export function FranchiseWorkflow({
 
       <TabsContent value="billing" className="mt-4">
         <FranchiseList franchises={forBilling} type="billing" />
-      </TabsContent>
-
-      <TabsContent value="payment" className="mt-4">
-        <FranchiseList franchises={forPayment} type="payment" />
       </TabsContent>
       
       <TabsContent value="sp" className="mt-4">
@@ -92,8 +88,12 @@ export function FranchiseWorkflow({
         <FranchiseList franchises={approved} type="approved" />
       </TabsContent>
 
+      <TabsContent value="payment" className="mt-4">
+        <FranchiseList franchises={published} type="payment" />
+      </TabsContent>
+
       <TabsContent value="active" className="mt-4">
-        <FranchiseList franchises={published} type="active" />
+        <FranchiseList franchises={active} type="active" />
       </TabsContent>
     </Tabs>
     </div>

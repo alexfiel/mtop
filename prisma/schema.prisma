@@ -19,12 +19,28 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  // Custom Role Field
-  role Role @default(USER)
+  // Roles Relationship
+  roles UserRole[]
 
   sessions  Session[]
   accounts  Account[]
   auditLogs AuditLog[]
+  tasks     FranchiseTasks[]
+  profile   UserProfile?
+}
+
+model UserProfile {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contactNo   String?
+  jobTitle    String?
+  department  String?
+  office      String?
+  dateOfBirth DateTime?
+  address     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model Session {
@@ -65,15 +81,30 @@ model Verification {
   updatedAt  DateTime? @updatedAt
 }
 
-enum Role {
-  ADMIN
-  SECRETARY
-  ENFORCER
-  INSPECTOR
-  CLERK
-  CASHIER
-  VIEWER
-  USER
+model Role {
+  id         String  @id @default(cuid())
+  name       String  @unique
+  function   String?
+  capability String?
+
+  users UserRole[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserRole {
+  id     String @id @default(cuid())
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, roleId])
 }
 
 // ---------------------------------------------
@@ -136,28 +167,29 @@ enum DocumentType {
 }
 
 model BodyNumber {
-  bodyNumber Int @id
-  franchiseId String? @unique
-  franchise Franchise? @relation(fields: [franchiseId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  bodyNumber  Int        @id
+  franchiseId String?    @unique
+  franchise   Franchise? @relation(fields: [franchiseId], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 }
-
-
 
 model Franchise {
   id          String   @id @default(cuid())
   franchiseNo String   @unique
-  ownerName   String
+  ownerName   String   @unique
   address     String
   contactNo   String
   email       String   @unique
   dateOfBirth DateTime
 
   // Additional Franchise Details
-  resolutionNo    String?
-  approvedOn      DateTime?
-  areaOfOperation String?
+  resolutionNo         String?
+  approvedOn           DateTime?
+  areaOfOperation      String?
+  currentApplicationId String?                @unique
+  currentApplication   FranchiseApplication?  @relation("CurrentApplication", fields: [currentApplicationId], references: [id])
+  applications         FranchiseApplication[] @relation("FranchiseApplications")
 
   status    String    @default("PENDING") // PENDING, FOR_SP_APPROVAL, APPROVED, PUBLISHED, ACTIVE, SUSPENDED, REVOKED
   isRenewal Boolean   @default(false)
@@ -171,6 +203,33 @@ model Franchise {
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   franchiseTransactions FranchiseTransaction[]
+}
+
+model FranchiseApplication {
+  id               String         @id @default(cuid())
+  franchiseNo      String
+  franchiseId      String
+  apptype          String // new, renewal, retirement
+  appyear          Int
+  remarks          String
+  status           String         @default("PENDING")
+  taskId           String
+  task             FranchiseTasks @relation(fields: [taskId], references: [id])
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  franchise        Franchise      @relation("FranchiseApplications", fields: [franchiseId], references: [id])
+  franchiseCurrent Franchise?     @relation("CurrentApplication")
+}
+
+model FranchiseTasks {
+  id           String                 @id @default(cuid())
+  taskname     String
+  taskdesc     String
+  userId       String
+  user         User                   @relation(fields: [userId], references: [id])
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  applications FranchiseApplication[]
 }
 
 model FranchiseTransaction {
@@ -329,15 +388,13 @@ model AuditLog {
 }
 
 model ItemAccounts {
-  id              String  @id @default(cuid())
-  account_name    String
-  account_number  String  @unique
-  default_amount  Float   @default(0)
-  isActive        Boolean @default(true)
-  fundtype        String  //General Fund, Trust Fund, Motorized Vehicle Fund
-  
+  id             String  @id @default(cuid())
+  account_name   String
+  account_number String  @unique
+  default_amount Float   @default(0)
+  isActive       Boolean @default(true)
+  fundtype       String //General Fund, Trust Fund, Motorized Vehicle Fund
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-

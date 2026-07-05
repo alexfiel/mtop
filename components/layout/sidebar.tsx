@@ -31,13 +31,21 @@ import {
   SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
 
+import { prisma } from "@/lib/prisma";
+
 export async function Sidebar() {
   const session = await auth.api.getSession({
     headers: await headers()
   });
 
-  // @ts-ignore - Custom fields in user object
-  const isAdmin = session?.user?.role === "ADMIN";
+  let isAdmin = false;
+  if (session?.user?.id) {
+    const userRoles = await prisma.userRole.findMany({
+      where: { userId: session.user.id },
+      include: { role: true }
+    });
+    isAdmin = userRoles.some(ur => ur.role.name === "ADMIN" || ur.role.name === "SUPERADMIN");
+  }
 
   return (
     <UiSidebar>
@@ -137,14 +145,24 @@ export async function Sidebar() {
             <SidebarGroupLabel>Admin</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton render={
-                    <Link href="/users">
-                      <Users />
-                      <span>Users Management</span>
-                    </Link>
-                  } />
-                </SidebarMenuItem>
+                <Collapsible className="group/collapsible">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger render={
+                      <SidebarMenuButton>
+                        <Users />
+                        <span>Users Management</span>
+                        <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90 group-data-[panel-open]/collapsible:rotate-90" />
+                      </SidebarMenuButton>
+                    } />
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton render={<Link href="/users"><span>List of Users</span></Link>} />
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
                 <SidebarMenuItem>
                   <SidebarMenuButton render={
                     <Link href="/audit-logs">
@@ -153,22 +171,27 @@ export async function Sidebar() {
                     </Link>
                   } />
                 </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton render={
-                    <Link href="/settings/fees">
-                      <Settings />
-                      <span>Settings (Fees)</span>
-                    </Link>
-                  } />
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton render={
-                    <Link href="/financial">
-                      <Settings />
-                      <span>Financial Settings</span>
-                    </Link>
-                  } />
-                </SidebarMenuItem>
+                <Collapsible className="group/collapsible">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger render={
+                      <SidebarMenuButton>
+                        <Settings />
+                        <span>Financial Settings</span>
+                        <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90 group-data-[panel-open]/collapsible:rotate-90" />
+                      </SidebarMenuButton>
+                    } />
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton render={<Link href="/financial"><span>Item Accounts</span></Link>} />
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton render={<Link href="/settings/fees"><span>Fee Rules</span></Link>} />
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

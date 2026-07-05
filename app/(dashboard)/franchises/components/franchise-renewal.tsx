@@ -163,8 +163,8 @@ export function FranchiseRenewal({ onSuccess }: { onSuccess: () => void }) {
         }}
         franchise={billingFranchise}
         onSuccess={() => {
-          // Keep it simple: after billing modal finishes (user clicks Generate & Send to Payment)
-          // The BillingModal logic itself handles the transition to FOR_PAYMENT.
+          // Keep it simple: after billing modal finishes (user clicks Generate & Send to SP Approval)
+          // The BillingModal logic itself handles the transition to FOR_SP_APPROVAL.
           setBillingFranchise(null);
           setFranchise(null);
           setFranchiseNo("");

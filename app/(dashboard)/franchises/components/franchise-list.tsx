@@ -82,6 +82,8 @@ export function FranchiseList({ franchises, type }: FranchiseListProps) {
         amount: parseFloat(paymentData.amount),
         orNumber: paymentData.orNumber,
       });
+      // The action `recordFranchisePayment` previously updated status to FOR_SP_APPROVAL.
+      // We need to change that in actions.ts to ACTIVE.
       toast.success("Payment recorded successfully.");
       setIsPaymentModalOpen(false);
     } catch (e) {
@@ -166,12 +168,12 @@ export function FranchiseList({ franchises, type }: FranchiseListProps) {
                       Publish
                     </Button>
                   )}
-                  {type === "active" && franchise.status === "PUBLISHED" && (
+                  {type === "payment" && (
                     <Button 
                       size="sm" 
-                      onClick={() => handleAction(franchise.id, "ACTIVE")}
+                      onClick={() => openPaymentModal(franchise)}
                     >
-                      Issue Certificate
+                      Record Payment
                     </Button>
                   )}
                   {type === "active" && franchise.status === "ACTIVE" && (
@@ -249,7 +251,7 @@ export function FranchiseList({ franchises, type }: FranchiseListProps) {
               />
             </div>
             <p className="text-sm text-muted-foreground mt-4">
-              Recording this payment will forward the application for SP Approval.
+              Recording this payment will finalize the application and issue the certificate.
             </p>
           </div>
           <DialogFooter>
@@ -265,7 +267,7 @@ export function FranchiseList({ franchises, type }: FranchiseListProps) {
         franchise={selectedBillingFranchise}
         onSuccess={() => {
           if (selectedBillingFranchise) {
-            handleAction(selectedBillingFranchise.id, "FOR_PAYMENT");
+            handleAction(selectedBillingFranchise.id, "FOR_SP_APPROVAL");
             setSelectedBillingFranchise(null);
           }
         }}

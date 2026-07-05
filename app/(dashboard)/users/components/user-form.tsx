@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,16 +15,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { createUser, updateUser, updateUserPassword } from "../actions";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { Role } from "@prisma/client";
 
-const roles = ["ADMIN", "ENFORCER", "CASHIER", "VIEWER", "USER"] as const;
+type RoleType = { id: string; name: string };
 
 const userSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
-  role: z.enum(roles),
+  roles: z.array(z.string()).min(1, "Select at least one role"),
 });
 
 const createUserSchema = userSchema.extend({
@@ -39,17 +46,36 @@ type UserFormProps = {
     id: string;
     name: string;
     email: string;
-    role: Role;
+    roles: { role: RoleType }[];
   };
+  roles: RoleType[];
   onSuccess: () => void;
   onCancel: () => void;
 };
 
 type UserFormValues = z.infer<typeof createUserSchema>;
 
-export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
+export function UserForm({ user, roles, onSuccess, onCancel }: UserFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPasswordChange, setIsPasswordChange] = useState(false);
+  
+  const [localRoles, setLocalRoles] = useState<RoleType[]>(roles);
+  const [newRole, setNewRole] = useState("");
+
+  const handleAddCustomRole = () => {
+    if (!newRole.trim()) return;
+    const roleName = newRole.trim().toUpperCase();
+    
+    if (!localRoles.some(r => r.name === roleName)) {
+      setLocalRoles([...localRoles, { id: roleName, name: roleName }]);
+    }
+    
+    const currentRoles = form.getValues("roles") || [];
+    if (!currentRoles.includes(roleName)) {
+      form.setValue("roles", [...currentRoles, roleName], { shouldValidate: true });
+    }
+    setNewRole("");
+  };
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(user ? (isPasswordChange ? updatePasswordSchema : userSchema) : createUserSchema) as any,
@@ -57,13 +83,13 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
       ? {
           name: user.name,
           email: user.email,
-          role: user.role,
+          roles: user.roles.map((r) => r.role.id),
           password: "",
         }
       : {
           name: "",
           email: "",
-          role: "USER",
+          roles: [],
           password: "",
         },
   });
@@ -86,7 +112,7 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
           const res = await updateUser(user.id, {
             name: values.name,
             email: values.email,
-            role: values.role,
+            roles: values.roles,
           });
           if (res.success) {
             toast.success("User updated successfully");
@@ -99,7 +125,7 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
         const res = await createUser({
           name: values.name,
           email: values.email,
-          role: values.role,
+          roles: values.roles,
           password: values.password,
         });
         if (res.success) {
@@ -116,7 +142,7 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
     }
   }
 
-  const roleValue = watch("role");
+  const rolesValue = watch("roles") || [];
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -147,24 +173,59 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
             {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="role">Role</Label>
-            <Select 
-              value={roleValue} 
-              onValueChange={(value) => setValue("role", value as any, { shouldValidate: true })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a role" />
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map((role) => (
-                  <SelectItem key={role} value={role}>
-                    {role}
-                  </SelectItem>
+          <div className="space-y-3">
+            <Label>Roles</Label>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger 
+                render={<Button variant="outline" className="w-full justify-between font-normal text-left h-auto min-h-[2.5rem] py-2" />}
+              >
+                <span className="truncate">
+                  {rolesValue.length === 0 
+                    ? "Select roles..." 
+                    : localRoles
+                        .filter(r => rolesValue.includes(r.id))
+                        .map(r => r.name)
+                        .join(", ")}
+                </span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-[375px] max-h-[300px] overflow-y-auto">
+                {localRoles.map((role) => (
+                  <DropdownMenuCheckboxItem
+                    key={role.id}
+                    checked={rolesValue.includes(role.id)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setValue("roles", [...rolesValue, role.id], { shouldValidate: true });
+                      } else {
+                        setValue("roles", rolesValue.filter((id: string) => id !== role.id), { shouldValidate: true });
+                      }
+                    }}
+                  >
+                    {role.name}
+                  </DropdownMenuCheckboxItem>
                 ))}
-              </SelectContent>
-            </Select>
-            {errors.role && <p className="text-sm text-destructive">{errors.role.message}</p>}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
+            <div className="flex gap-2 items-center mt-2">
+              <Input 
+                placeholder="Custom role name..." 
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddCustomRole();
+                  }
+                }}
+                className="h-8"
+              />
+              <Button type="button" size="sm" onClick={handleAddCustomRole} variant="secondary">
+                <Plus className="h-4 w-4 mr-1" /> Add
+              </Button>
+            </div>
+            {errors.roles && <p className="text-sm text-destructive">{errors.roles.message}</p>}
           </div>
         </>
       )}

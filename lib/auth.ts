@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
-import { sendVerificationEmail } from "./email";
+import { sendPasswordResetEmail } from "./email";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -9,23 +9,13 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: true, // Prevents login until verified
-  },
-  emailVerification: {
-    sendOnSignUp: true,
-    autoSignInAfterVerification: true,
-    sendVerificationEmail: async ({ user, url }) => {
-      await sendVerificationEmail(user.email, url);
+    sendResetPassword: async ({ user, url }) => {
+      await sendPasswordResetEmail(user.email, url);
     },
   },
   trustedOrigins: ["http://localhost:3000"],
   user: {
     additionalFields: {
-      role: {
-        type: "string",
-        required: false,
-        defaultValue: "USER",
-      },
     },
   },
   session: {

@@ -70,3 +70,51 @@ export const sendVerificationEmail = async (to: string, url: string) => {
     return { success: false, error };
   }
 };
+
+export const sendPasswordResetEmail = async (to: string, url: string) => {
+  try {
+    const transporter = await getTransporter();
+
+    if (!transporter) {
+      console.log("\n=======================================================");
+      console.log(" DEVELOPMENT MODE: NO SMTP CONFIGURED");
+      console.log(" PASSWORD RESET URL:");
+      console.log(` ${url}`);
+      console.log("=======================================================\n");
+      return { success: true };
+    }
+
+    const info = await transporter.sendMail({
+      from: process.env.SMTP_FROM || '"MTOP Portal" <noreply@mtop.lgu.gov.ph>',
+      to,
+      subject: "Reset your MTOP Account Password",
+      text: `Please reset your password by clicking the following link: ${url}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-w-lg mx-auto p-6 bg-white rounded shadow">
+          <h2 style="color: #333;">MTOP Management Portal Password Reset</h2>
+          <p>We received a request to reset your password. Click the button below to choose a new one.</p>
+          <div style="margin: 24px 0;">
+            <a href="${url}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+              Reset Password
+            </a>
+          </div>
+          <p style="color: #666; font-size: 14px;">
+            If the button doesn't work, copy and paste this link into your browser:<br/>
+            <a href="${url}">${url}</a>
+          </p>
+          <p style="color: #999; font-size: 12px; margin-top: 32px;">
+            If you did not request a password reset, please ignore this email.
+          </p>
+        </div>
+      `,
+    });
+
+    console.log("Password reset message sent: %s", info.messageId);
+    
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending password reset email:", error);
+    return { success: false, error };
+  }
+};
+

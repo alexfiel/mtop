@@ -1,0 +1,25 @@
+
+> mtop-app@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.12:3000
+- Environments: .env
+✓ Ready in 707ms
+- Experiments (use with caution):
+  · serverActions
+
+ GET /login 200 in 1194ms (next.js: 159ms, proxy.ts: 403ms, application-code: 633ms)
+ POST /api/auth/forget-password 404 in 2.9s (next.js: 2.8s, application-code: 46ms)
+2026-07-04T05:37:49.136Z ERROR [Better Auth]: Reset Password: User not found { email: 'admin@example.com' }
+ POST /api/auth/request-password-reset 200 in 607ms (next.js: 67ms, application-code: 540ms)
+ POST /api/auth/forget-password 404 in 82ms (next.js: 70ms, application-code: 11ms)
+ POST /api/auth/reset-password 400 in 109ms (next.js: 58ms, application-code: 51ms)
+ POST /api/auth/forget-password 404 in 81ms (next.js: 69ms, application-code: 12ms)
+ POST /api/auth/forgot-password 404 in 74ms (next.js: 63ms, application-code: 11ms)
+2026-07-04T05:42:56.865Z ERROR [Better Auth]: Reset Password: User not found { email: 'admin@example.com' }
+ POST /api/auth/request-password-reset 200 in 114ms (next.js: 61ms, application-code: 52ms)
+ GET /login 200 in 129ms (next.js: 10ms, proxy.ts: 14ms, application-code: 105ms)
+ GET /login 200 in 24ms (next.js: 6ms, proxy.ts: 6ms, application-code: 13ms)
+[?25h
