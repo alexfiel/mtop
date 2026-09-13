@@ -27,6 +27,7 @@ model User {
   auditLogs AuditLog[]
   tasks     FranchiseTasks[]
   profile   UserProfile?
+  vehicle   MTOPVehicle?
 }
 
 model UserProfile {
@@ -174,6 +175,130 @@ model BodyNumber {
   updatedAt   DateTime   @updatedAt
 }
 
+model NewFranchise {
+  id                  String   @id @default(cuid())
+  franchiseBodyNumber Int      @unique
+  operatorId          String   @unique
+  operator            Operator @relation(fields: [operatorId], references: [id])
+  zone                String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  //MTOP Vehicle Relation
+  mtopVehicleId String?      @unique
+  mtopVehicle   MTOPVehicle? @relation("NewFranchiseVehicle", fields: [mtopVehicleId], references: [id])
+
+  // Application relations
+  currentApplicationId String?                @unique
+  currentApplication   FranchiseApplication?  @relation("CurrentNewFranchiseApplication", fields: [currentApplicationId], references: [id])
+  applications         FranchiseApplication[] @relation("NewFranchiseApplications")
+
+  // Tasks relation
+  tasks FranchiseTasks[]
+}
+
+model Operator {
+  id                String    @id @default(cuid())
+  operatorId        String    @unique
+  name              String    @unique
+  address           String
+  email             String    @unique
+  mobileNo          String    @unique
+  dateOfBirth       DateTime
+  validIDType       String
+  validIDNumber     String    @unique
+  validIDExpiryDate DateTime
+  profilePicture    String?
+  validIdFront      String?
+  validIdBack       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  encodedBy         String
+  encodedDate       DateTime  @default(now())
+  updatedBy         String?
+  updatedDate       DateTime? @updatedAt
+  status            String    @default("PENDING")
+  isVerified        Boolean   @default(false)
+  verifiedBy        String?
+  verifiedDate      DateTime?
+  approvedBy        String?
+  approvedDate      DateTime?
+
+  // One-to-One Relations
+  newFranchise NewFranchise?
+  vehicle      MTOPVehicle?
+}
+
+model MTOPVehicle {
+  id                  String @id @default(cuid())
+  registeredOwnerName String
+  registeredAddress   String
+  make                String
+  model               String
+  year                Int
+  plateNumber         String @unique
+  engineNumber        String
+  chassisNumber       String
+  color               String
+  registrationNumber  String @unique
+
+  // one to one with operator
+  operatorId String   @unique
+  operator   Operator @relation(fields: [operatorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String? @unique
+
+  // One to One New Franchise (Virtual inverse side)
+  newFranchise NewFranchise? @relation("NewFranchiseVehicle")
+}
+
+model FranchiseApplication {
+  id             String          @id @default(cuid())
+  mtopNo         String?         @unique
+  appyear        Int
+  apptype        String
+  resolutionNo   String?
+  resolutionDate DateTime?
+  remarks        String?
+  status         String          @default("PENDING")
+  approvedBy     String?
+  approvedDate   DateTime?
+  taskId         String?
+  task           FranchiseTasks? @relation(fields: [taskId], references: [id])
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  // Relation with NewFranchise
+  newFranchiseId      String?
+  newFranchise        NewFranchise? @relation("NewFranchiseApplications", fields: [newFranchiseId], references: [id])
+  newFranchiseCurrent NewFranchise? @relation("CurrentNewFranchiseApplication")
+
+  // Backward compatibility with legacy Franchise model
+  franchiseId      String?
+  franchise        Franchise? @relation("FranchiseApplications", fields: [franchiseId], references: [id])
+  franchiseCurrent Franchise? @relation("CurrentApplication")
+}
+
+model FranchiseTasks {
+  id           String                 @id @default(cuid())
+  office       String
+  taskname     String
+  taskdesc     String
+  userId       String
+  user         User                   @relation(fields: [userId], references: [id])
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  applications FranchiseApplication[]
+
+  // Relation with NewFranchise
+  newFranchiseId String?
+  newFranchise   NewFranchise? @relation(fields: [newFranchiseId], references: [id])
+}
+
 model Franchise {
   id          String   @id @default(cuid())
   franchiseNo String   @unique
@@ -203,33 +328,6 @@ model Franchise {
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   franchiseTransactions FranchiseTransaction[]
-}
-
-model FranchiseApplication {
-  id               String         @id @default(cuid())
-  franchiseNo      String
-  franchiseId      String
-  apptype          String // new, renewal, retirement
-  appyear          Int
-  remarks          String
-  status           String         @default("PENDING")
-  taskId           String
-  task             FranchiseTasks @relation(fields: [taskId], references: [id])
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  franchise        Franchise      @relation("FranchiseApplications", fields: [franchiseId], references: [id])
-  franchiseCurrent Franchise?     @relation("CurrentApplication")
-}
-
-model FranchiseTasks {
-  id           String                 @id @default(cuid())
-  taskname     String
-  taskdesc     String
-  userId       String
-  user         User                   @relation(fields: [userId], references: [id])
-  createdAt    DateTime               @default(now())
-  updatedAt    DateTime               @updatedAt
-  applications FranchiseApplication[]
 }
 
 model FranchiseTransaction {
