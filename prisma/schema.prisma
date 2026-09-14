@@ -178,9 +178,9 @@ model BodyNumber {
 model NewFranchise {
   id                  String   @id @default(cuid())
   franchiseBodyNumber Int      @unique
-  operatorId          String   @unique
-  operator            Operator @relation(fields: [operatorId], references: [id])
-  zone                String
+  operatorId          String?  @unique
+  operator            Operator? @relation(fields: [operatorId], references: [id])
+  zone                String? @default("Tagbilaran City")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -195,6 +195,10 @@ model NewFranchise {
 
   // Tasks relation
   tasks FranchiseTasks[]
+  isActive Boolean @default(false)
+  isAssigned Boolean @default(false)
+  assignedDate DateTime?
+  remarks String?    
 }
 
 model Operator {

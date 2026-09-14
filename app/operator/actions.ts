@@ -144,7 +144,11 @@ export async function getOperators() {
   return await prisma.operator.findMany({
     orderBy: { createdAt: "desc" },
     include: {
-      newFranchise: true,
+      newFranchise: {
+        include: {
+          mtopVehicle: true,
+        },
+      },
       vehicle: true,
     },
   });
@@ -154,7 +158,11 @@ export async function getOperatorById(id: string) {
   return await prisma.operator.findUnique({
     where: { id },
     include: {
-      newFranchise: true,
+      newFranchise: {
+        include: {
+          mtopVehicle: true,
+        },
+      },
       vehicle: true,
     },
   });

@@ -24,7 +24,9 @@ import {
   CheckCircle2,
   Clock,
   Car,
+  ExternalLink,
 } from "lucide-react";
+import { OperatorDetailModal } from "./operator-detail-modal";
 
 interface OperatorItem {
   id: string;
@@ -44,6 +46,7 @@ interface OperatorItem {
   createdAt: Date | string;
   newFranchise?: any;
   vehicle?: any;
+  [key: string]: any;
 }
 
 interface OperatorListProps {
@@ -53,6 +56,13 @@ interface OperatorListProps {
 
 export function OperatorList({ operators, onAddNew }: OperatorListProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedOperator, setSelectedOperator] = useState<OperatorItem | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+
+  const handleViewDetails = (op: OperatorItem) => {
+    setSelectedOperator(op);
+    setDetailModalOpen(true);
+  };
 
   const filtered = operators.filter((op) => {
     const term = searchTerm.toLowerCase();
@@ -101,12 +111,13 @@ export function OperatorList({ operators, onAddNew }: OperatorListProps) {
               <TableHead>Valid ID Credential</TableHead>
               <TableHead>Franchise & Vehicle</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-20 text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <User className="h-8 w-8 text-muted-foreground/40" />
                     <p className="text-sm font-medium">No operators found</p>
@@ -119,105 +130,149 @@ export function OperatorList({ operators, onAddNew }: OperatorListProps) {
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((op) => (
-                <TableRow key={op.id} className="hover:bg-muted/30">
-                  {/* Photo */}
-                  <TableCell>
-                    <div className="w-10 h-10 rounded-full overflow-hidden border bg-muted/40 flex items-center justify-center shrink-0">
-                      {op.profilePicture ? (
-                        <img
-                          src={op.profilePicture}
-                          alt={op.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <User className="h-5 w-5 text-muted-foreground" />
-                      )}
-                    </div>
-                  </TableCell>
+              filtered.map((op) => {
+                const attachedVehicle = op.vehicle || op.newFranchise?.mtopVehicle;
+                return (
+                  <TableRow key={op.id} className="hover:bg-muted/30">
+                    {/* Photo */}
+                    <TableCell>
+                      <div
+                        onClick={() => handleViewDetails(op)}
+                        className="w-10 h-10 rounded-full overflow-hidden border bg-muted/40 flex items-center justify-center shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/40 transition-all"
+                        title="Click to view details"
+                      >
+                        {op.profilePicture ? (
+                          <img
+                            src={op.profilePicture}
+                            alt={op.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <User className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </div>
+                    </TableCell>
 
-                  {/* Operator Details */}
-                  <TableCell>
-                    <div className="font-semibold text-sm text-foreground">{op.name}</div>
-                    <div className="text-xs font-mono text-primary">{op.operatorId}</div>
-                    <div className="text-xs text-muted-foreground truncate max-w-xs">
-                      {op.address}
-                    </div>
-                  </TableCell>
+                    {/* Operator Details (Clickable Name Link) */}
+                    <TableCell>
+                      <button
+                        type="button"
+                        onClick={() => handleViewDetails(op)}
+                        className="font-semibold text-sm text-foreground hover:text-primary hover:underline transition-colors text-left flex items-center gap-1.5 group cursor-pointer"
+                        title="Click to view full operator profile, vehicle & franchise details"
+                      >
+                        <span>{op.name}</span>
+                        <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
+                      </button>
+                      <div className="text-xs font-mono text-primary mt-0.5">{op.operatorId}</div>
+                      <div className="text-xs text-muted-foreground truncate max-w-xs mt-0.5">
+                        {op.address}
+                      </div>
+                    </TableCell>
 
-                  {/* Contact Info */}
-                  <TableCell>
-                    <div className="flex items-center gap-1.5 text-xs text-foreground">
-                      <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                      {op.mobileNo}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                      {op.email}
-                    </div>
-                  </TableCell>
+                    {/* Contact Info */}
+                    <TableCell>
+                      <div className="flex items-center gap-1.5 text-xs text-foreground">
+                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                        {op.mobileNo}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                        {op.email}
+                      </div>
+                    </TableCell>
 
-                  {/* Valid ID */}
-                  <TableCell>
-                    <div className="text-xs font-medium text-foreground">{op.validIDType}</div>
-                    <div className="text-xs font-mono text-muted-foreground">
-                      No: {op.validIDNumber}
-                    </div>
-                    <div className="flex items-center gap-1 mt-1">
-                      {op.validIdFront ? (
-                        <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-300">
-                          ID Front ✓
+                    {/* Valid ID */}
+                    <TableCell>
+                      <div className="text-xs font-medium text-foreground">{op.validIDType}</div>
+                      <div className="text-xs font-mono text-muted-foreground">
+                        No: {op.validIDNumber}
+                      </div>
+                      <div className="flex items-center gap-1 mt-1">
+                        {op.validIdFront ? (
+                          <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-300">
+                            ID Front ✓
+                          </Badge>
+                        ) : null}
+                        {op.validIdBack ? (
+                          <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-300">
+                            ID Back ✓
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </TableCell>
+
+                    {/* Franchise & Vehicle Link */}
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        {op.newFranchise ? (
+                          <button
+                            type="button"
+                            onClick={() => handleViewDetails(op)}
+                            className="text-xs font-medium text-foreground hover:text-primary flex items-center gap-1 text-left cursor-pointer group"
+                          >
+                            <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                            <span>Body #{op.newFranchise.franchiseBodyNumber}</span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No Franchise Yet</span>
+                        )}
+
+                        {attachedVehicle ? (
+                          <button
+                            type="button"
+                            onClick={() => handleViewDetails(op)}
+                            className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 text-left cursor-pointer group"
+                          >
+                            <Car className="h-3 w-3 text-primary" />
+                            <span>Plate: {attachedVehicle.plateNumber}</span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No Vehicle Attached</span>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* Status */}
+                    <TableCell>
+                      {op.status === "ACTIVE" ? (
+                        <Badge className="bg-emerald-600 text-white gap-1 text-xs">
+                          <CheckCircle2 className="h-3 w-3" /> Active
                         </Badge>
-                      ) : null}
-                      {op.validIdBack ? (
-                        <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-300">
-                          ID Back ✓
+                      ) : (
+                        <Badge variant="secondary" className="gap-1 text-xs bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                          <Clock className="h-3 w-3" /> {op.status}
                         </Badge>
-                      ) : null}
-                    </div>
-                  </TableCell>
-
-                  {/* Franchise & Vehicle Link */}
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      {op.newFranchise ? (
-                        <span className="text-xs font-medium text-foreground flex items-center gap-1">
-                          <ShieldCheck className="h-3 w-3 text-emerald-600" />
-                          Body #{op.newFranchise.franchiseBodyNumber}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">No Franchise Yet</span>
                       )}
+                    </TableCell>
 
-                      {op.vehicle ? (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Car className="h-3 w-3 text-primary" />
-                          Plate: {op.vehicle.plateNumber}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">No Vehicle Attached</span>
-                      )}
-                    </div>
-                  </TableCell>
-
-                  {/* Status */}
-                  <TableCell>
-                    {op.status === "ACTIVE" ? (
-                      <Badge className="bg-emerald-600 text-white gap-1 text-xs">
-                        <CheckCircle2 className="h-3 w-3" /> Active
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="gap-1 text-xs bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                        <Clock className="h-3 w-3" /> {op.status}
-                      </Badge>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
+                    {/* Action */}
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleViewDetails(op)}
+                        className="h-7 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10 gap-1 cursor-pointer"
+                        title="View complete profile"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </div>
+
+      {/* OPERATOR DETAILS PROFILE MODAL */}
+      <OperatorDetailModal
+        open={detailModalOpen}
+        onOpenChange={setDetailModalOpen}
+        operator={selectedOperator}
+      />
     </div>
   );
 }
