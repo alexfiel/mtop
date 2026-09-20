@@ -278,12 +278,18 @@ model FranchiseApplication {
   resolutionDate DateTime?
   remarks        String?
   status         String          @default("PENDING")
+  currentDomain  String          @default("TRAFFIC") // TRAFFIC, BPLO, SP, TREASURY
   approvedBy     String?
   approvedDate   DateTime?
   taskId         String?
   task           FranchiseTasks? @relation(fields: [taskId], references: [id])
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+
+  // Workflow engine relations
+  assessments      FranchiseAssessment[]
+  trafficClearance TrafficClearance?
+  spResolution     SPResolution?
 
   // Relation with NewFranchise
   newFranchiseId      String?
@@ -294,6 +300,68 @@ model FranchiseApplication {
   franchiseId      String?
   franchise        Franchise? @relation("FranchiseApplications", fields: [franchiseId], references: [id])
   franchiseCurrent Franchise? @relation("CurrentApplication")
+}
+
+model TrafficClearance {
+  id                    String   @id @default(cuid())
+  applicationId         String   @unique
+  application           FranchiseApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  certificateNo         String   @unique
+  inspectionStatus      String   @default("PENDING") // PENDING, PASSED, FAILED
+  engineChassisVerified Boolean  @default(false)
+  roadworthinessPassed  Boolean  @default(false)
+  violationsCount       Int      @default(0)
+  violationsSettled     Boolean  @default(true)
+  violationsSnapshot    String?  // JSON array of violation details
+  clearedAt             DateTime?
+  clearedBy             String?
+  verificationHash      String?
+  remarks               String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model FranchiseAssessment {
+  id                String    @id @default(cuid())
+  applicationId     String
+  application       FranchiseApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  billingReference  String    @unique // eTRACS reference billing ID
+  assessmentType    String    // DELINQUENCY, LEGISLATIVE_TAX, TRAFFIC_FINES
+  franchiseTax      Float     @default(0)
+  surcharge         Float     @default(0)
+  penalty           Float     @default(0)
+  filingFee         Float     @default(0)
+  clearanceFee      Float     @default(0)
+  totalAmount       Float
+  status            String    @default("PENDING") // PENDING, PAID, CANCELLED
+  etracsTxnId       String?
+  orNumber          String?
+  paymentDate       DateTime?
+  paymentDetails    String?   // JSON
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model SPResolution {
+  id                 String    @id @default(cuid())
+  applicationId      String    @unique
+  application        FranchiseApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  orderOfTheDayDate  DateTime?
+  sessionNumber      String?
+  resolutionNumber   String?   @unique
+  votingResult       String?   // APPROVED, DISAPPROVED, DEFERRED
+  affirmativeVotes   Int       @default(0)
+  negativeVotes      Int       @default(0)
+  abstainingVotes    Int       @default(0)
+  publishedAt        DateTime?
+  publicationGazette String?
+  certificatePrinted Boolean   @default(false)
+  signatoryName      String?
+  signatoryTitle     String?
+  signedAt           DateTime?
+  remarks            String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }
 
 model FranchiseTasks {

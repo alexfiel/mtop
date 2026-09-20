@@ -14,7 +14,7 @@ export function FranchiseWorkflow({
   initialFranchises, 
   unassignedBodyNumbers 
 }: { 
-  initialFranchises: Franchise[];
+  initialFranchises: any[];
   unassignedBodyNumbers: any[];
 }) {
   const [activeTab, setActiveTab] = useState("pending");

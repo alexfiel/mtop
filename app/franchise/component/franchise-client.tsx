@@ -26,6 +26,16 @@ import { FranchiseAssignModal } from "./franchise-assign-modal";
 import { FranchiseUnassignDialog } from "./franchise-unassign-dialog";
 import { EnrollVehicleModal } from "@/app/vehicle/component/enroll-vehicle-modal";
 import { UnitDriversModal } from "@/app/driver/component/unit-drivers-modal";
+import { VehicleDetailModal } from "@/app/vehicle/component/vehicle-detail-modal";
+import { DriverDetailModal } from "@/app/driver/component/driver-detail-modal";
+import { OperatorDetailModal } from "@/app/operator/component/operator-detail-modal";
+import { FranchiseApplicationModal } from "./franchise-application-modal";
+import type { VehicleItem } from "@/app/vehicle/types";
+import type { DriverItem } from "@/app/driver/types";
+
+import { getVehicleById } from "@/app/vehicle/actions";
+import { getDriverById } from "@/app/driver/actions";
+import { getOperatorById } from "@/app/operator/actions";
 
 interface FranchiseClientProps {
   initialFranchises: any[];
@@ -61,6 +71,20 @@ export function FranchiseClient({
 
   const [manageDriversFranchise, setManageDriversFranchise] = useState<any | null>(null);
 
+  // Application Workflow Modal state
+  const [applicationModalOpen, setApplicationModalOpen] = useState<boolean>(false);
+  const [selectedApplicationFranchise, setSelectedApplicationFranchise] = useState<any | null>(null);
+
+  // Link View detail modals state
+  const [viewingVehicle, setViewingVehicle] = useState<VehicleItem | null>(null);
+  const [vehicleModalOpen, setVehicleModalOpen] = useState<boolean>(false);
+
+  const [viewingDriver, setViewingDriver] = useState<DriverItem | null>(null);
+  const [driverModalOpen, setDriverModalOpen] = useState<boolean>(false);
+
+  const [viewingOperator, setViewingOperator] = useState<any | null>(null);
+  const [operatorModalOpen, setOperatorModalOpen] = useState<boolean>(false);
+
   const currentManageDriversFranchise =
     initialFranchises.find((f) => f.id === manageDriversFranchise?.id) || manageDriversFranchise;
 
@@ -91,6 +115,124 @@ export function FranchiseClient({
   const handleUnassign = (franchise: any) => {
     setUnassigningFranchise(franchise);
     setUnassignDialogOpen(true);
+  };
+
+  // Link View Handlers (Zero-latency immediate modal open + on-demand hydration)
+  const handleViewVehicle = (vehicle: any, franchise: any) => {
+    if (!vehicle) return;
+    const initialVehicle: VehicleItem = {
+      ...vehicle,
+      operator: vehicle.operator || franchise?.operator || null,
+      newFranchise: franchise
+        ? {
+            id: franchise.id,
+            franchiseBodyNumber: franchise.franchiseBodyNumber,
+            zone: franchise.zone,
+            isActive: franchise.isActive,
+            remarks: franchise.remarks,
+          }
+        : null,
+    };
+    setViewingVehicle(initialVehicle);
+    setVehicleModalOpen(true);
+
+    // Hydrate complete specs, engine, chassis, and docs in background
+    if (vehicle.id) {
+      getVehicleById(vehicle.id).then((res) => {
+        if (res?.success && res.vehicle) {
+          setViewingVehicle((prev) => {
+            if (prev && prev.id === vehicle.id) {
+              return {
+                ...prev,
+                ...res.vehicle,
+                operator: res.vehicle.operator || prev.operator,
+                newFranchise: res.vehicle.newFranchise || prev.newFranchise,
+              };
+            }
+            return prev;
+          });
+        }
+      });
+    }
+  };
+
+  const handleViewDriver = (driver: any, franchise: any) => {
+    if (!driver) return;
+    const initialDriver: DriverItem = {
+      ...driver,
+      operator: driver.operator || franchise?.operator || null,
+      newFranchise: franchise
+        ? {
+            id: franchise.id,
+            franchiseBodyNumber: franchise.franchiseBodyNumber,
+            zone: franchise.zone,
+            mtopVehicle: franchise.mtopVehicle
+              ? {
+                  id: franchise.mtopVehicle.id,
+                  plateNumber: franchise.mtopVehicle.plateNumber,
+                  make: franchise.mtopVehicle.make,
+                  model: franchise.mtopVehicle.model,
+                }
+              : null,
+          }
+        : null,
+      attachmentHistory: driver.attachmentHistory || [],
+    };
+    setViewingDriver(initialDriver);
+    setDriverModalOpen(true);
+
+    // Hydrate complete credentials and assignment history in background
+    if (driver.id) {
+      getDriverById(driver.id).then((res) => {
+        if (res?.success && res.driver) {
+          setViewingDriver((prev) => {
+            if (prev && prev.id === driver.id) {
+              return {
+                ...prev,
+                ...res.driver,
+                driverRole: (res.driver.driverRole as "PRIMARY" | "SECONDARY" | null) ?? prev.driverRole,
+                operator: res.driver.operator || prev.operator,
+                newFranchise: res.driver.newFranchise || prev.newFranchise,
+                attachmentHistory: (res.driver.attachmentHistory as any) || prev.attachmentHistory,
+              };
+            }
+            return prev;
+          });
+        }
+      });
+    }
+  };
+
+  const handleViewOperator = (operator: any, franchise: any) => {
+    if (!operator) return;
+    const initialOperator = {
+      ...operator,
+      newFranchise: franchise || operator.newFranchise || null,
+      vehicle: franchise?.mtopVehicle || operator.vehicle || null,
+      drivers: franchise?.drivers || operator.drivers || [],
+    };
+    setViewingOperator(initialOperator);
+    setOperatorModalOpen(true);
+
+    // Hydrate complete operator record in background
+    if (operator.id) {
+      getOperatorById(operator.id).then((fullOp) => {
+        if (fullOp) {
+          setViewingOperator((prev: any) => {
+            if (prev && prev.id === operator.id) {
+              return {
+                ...prev,
+                ...fullOp,
+                newFranchise: fullOp.newFranchise || prev.newFranchise,
+                vehicle: fullOp.vehicle || prev.vehicle,
+                drivers: fullOp.drivers || prev.drivers,
+              };
+            }
+            return prev;
+          });
+        }
+      });
+    }
   };
 
   // Derived KPI metrics
@@ -142,7 +284,7 @@ export function FranchiseClient({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-5">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20">
+            <span className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-2xs">
               <ShieldCheck className="h-6 w-6" />
             </span>
             Franchise & Body Number Management
@@ -156,14 +298,14 @@ export function FranchiseClient({
           <Button
             variant="outline"
             onClick={() => setEnrollVehicleModalOpen(true)}
-            className="gap-2 font-semibold shadow-2xs border-primary/30 text-primary hover:bg-primary/10"
+            className="gap-2 font-semibold shadow-2xs border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
           >
             <Car className="h-4 w-4" />
             Enroll Vehicle
           </Button>
           <Button
             onClick={handleCreateNew}
-            className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs"
+            className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             Register Body Number
@@ -267,7 +409,7 @@ export function FranchiseClient({
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by Body #, Operator Name, OP-ID, Plate..."
+            placeholder="Search by Body #, Operator Name, OP-ID, Plate, Driver..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 h-9 text-xs"
@@ -277,23 +419,23 @@ export function FranchiseClient({
         {/* Tabs Filter */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-fit">
           <TabsList className="grid grid-cols-4 h-9">
-            <TabsTrigger value="all" className="text-xs font-semibold px-3">
+            <TabsTrigger value="all" className="text-xs font-semibold px-3 cursor-pointer">
               All ({totalCount})
             </TabsTrigger>
-            <TabsTrigger value="unassigned" className="text-xs font-semibold px-3 text-amber-700 dark:text-amber-400">
+            <TabsTrigger value="unassigned" className="text-xs font-semibold px-3 text-amber-700 dark:text-amber-400 cursor-pointer">
               Unassigned ({unassignedCount})
             </TabsTrigger>
-            <TabsTrigger value="assigned" className="text-xs font-semibold px-3 text-emerald-700 dark:text-emerald-400">
+            <TabsTrigger value="assigned" className="text-xs font-semibold px-3 text-emerald-700 dark:text-emerald-400 cursor-pointer">
               Assigned ({assignedCount})
             </TabsTrigger>
-            <TabsTrigger value="active" className="text-xs font-semibold px-3">
+            <TabsTrigger value="active" className="text-xs font-semibold px-3 cursor-pointer">
               Active ({activeCount})
             </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
 
-      {/* FRANCHISE LIST TABLE */}
+      {/* FRANCHISE LIST TABLE WITH LINK VIEWS */}
       <FranchiseList
         franchises={filteredFranchises}
         searchTerm={searchTerm}
@@ -302,6 +444,52 @@ export function FranchiseClient({
         onUnassign={handleUnassign}
         onRefresh={handleRefresh}
         onManageDrivers={setManageDriversFranchise}
+        onViewVehicle={handleViewVehicle}
+        onViewDriver={handleViewDriver}
+        onViewOperator={handleViewOperator}
+        onViewApplication={(franchise) => {
+          setSelectedApplicationFranchise(franchise);
+          setApplicationModalOpen(true);
+        }}
+      />
+
+      {/* VEHICLE DETAIL MODAL (LINK VIEW) */}
+      <VehicleDetailModal
+        vehicle={viewingVehicle}
+        open={vehicleModalOpen}
+        onOpenChange={(open) => {
+          setVehicleModalOpen(open);
+          if (!open) setViewingVehicle(null);
+        }}
+        onEdit={(vehicle) => {
+          setVehicleModalOpen(false);
+          router.push(`/vehicle?search=${vehicle.plateNumber}`);
+        }}
+      />
+
+      {/* DRIVER DETAIL MODAL (LINK VIEW) */}
+      <DriverDetailModal
+        driver={viewingDriver}
+        isOpen={driverModalOpen}
+        onClose={() => {
+          setDriverModalOpen(false);
+          setViewingDriver(null);
+        }}
+        onEdit={(driver) => {
+          setDriverModalOpen(false);
+          router.push(`/driver?search=${driver.licenseNo}`);
+        }}
+      />
+
+      {/* OPERATOR DETAIL MODAL (LINK VIEW) */}
+      <OperatorDetailModal
+        operator={viewingOperator}
+        open={operatorModalOpen}
+        onOpenChange={(open) => {
+          setOperatorModalOpen(open);
+          if (!open) setViewingOperator(null);
+        }}
+        onRefresh={handleRefresh}
       />
 
       {/* FORM MODAL (Create/Edit) */}
@@ -354,6 +542,17 @@ export function FranchiseClient({
           setManageDriversFranchise(null);
           handleRefresh();
         }}
+      />
+
+      {/* FRANCHISE APPLICATION WORKFLOW ENGINE MODAL */}
+      <FranchiseApplicationModal
+        open={applicationModalOpen}
+        onOpenChange={(open) => {
+          setApplicationModalOpen(open);
+          if (!open) setSelectedApplicationFranchise(null);
+        }}
+        franchise={selectedApplicationFranchise}
+        onSuccess={handleRefresh}
       />
     </div>
   );

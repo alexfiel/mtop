@@ -143,6 +143,58 @@ export async function getVehicles() {
 }
 
 /**
+ * Fetch a single MTOP vehicle by ID with full details on-demand
+ */
+export async function getVehicleById(id: string) {
+  try {
+    const vehicle = await prisma.mTOPVehicle.findUnique({
+      where: { id },
+      include: {
+        operator: {
+          select: {
+            id: true,
+            operatorId: true,
+            name: true,
+            mobileNo: true,
+            address: true,
+            email: true,
+            status: true,
+            isVerified: true,
+            newFranchise: {
+              select: {
+                id: true,
+                franchiseBodyNumber: true,
+                zone: true,
+                isActive: true,
+                remarks: true,
+              },
+            },
+          },
+        },
+        newFranchise: {
+          select: {
+            id: true,
+            franchiseBodyNumber: true,
+            zone: true,
+            isActive: true,
+            remarks: true,
+          },
+        },
+      },
+    });
+
+    if (!vehicle) {
+      return { success: false, error: "Vehicle not found" };
+    }
+
+    return { success: true, vehicle };
+  } catch (error: any) {
+    console.error("Error fetching vehicle by ID:", error);
+    return { success: false, error: error.message || "Failed to fetch vehicle" };
+  }
+}
+
+/**
  * Fetch operators eligible for vehicle enrollment (operators without any enrolled vehicle)
  */
 export async function getOperatorsWithoutVehicle() {

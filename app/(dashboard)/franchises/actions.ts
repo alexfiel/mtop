@@ -137,7 +137,12 @@ export async function getFranchises(status?: string) {
   return await prisma.franchise.findMany({
     where: status ? { status } : undefined,
     include: {
-      tricycle: true,
+      tricycle: {
+        include: {
+          mainDriver: true,
+          extraDriver: true,
+        },
+      },
     },
     orderBy: { ownerName: "asc" },
   });

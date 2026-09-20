@@ -91,6 +91,9 @@ export async function Sidebar() {
                         <SidebarMenuSubButton render={<Link href="/franchises"><span>List of Franchises</span></Link>} />
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
+                        <SidebarMenuSubButton render={<Link href="/franchise-application"><span>Application Workflow</span></Link>} />
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
                         <SidebarMenuSubButton render={<Link href="/franchises/new"><span>New Application</span></Link>} />
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
