@@ -195,6 +195,8 @@ model NewFranchise {
 
   // Tasks relation
   tasks FranchiseTasks[]
+  drivers Driver[] @relation("FranchiseDrivers")
+  driverHistories DriverAttachmentHistory[]
   isActive Boolean @default(false)
   isAssigned Boolean @default(false)
   assignedDate DateTime?
@@ -228,9 +230,11 @@ model Operator {
   approvedBy        String?
   approvedDate      DateTime?
 
-  // One-to-One Relations
+  // Relations
   newFranchise NewFranchise?
   vehicle      MTOPVehicle?
+  drivers      Driver[]     @relation("OperatorDrivers")
+  driverHistories DriverAttachmentHistory[]
 }
 
 model MTOPVehicle {
@@ -245,6 +249,11 @@ model MTOPVehicle {
   chassisNumber       String
   color               String
   registrationNumber  String @unique
+
+  // Vehicle Visual & Regulatory Documents
+  vehicleImage       String?
+  ltoCrDocument      String?
+  ltoOrDocument      String?
 
   // one to one with operator
   operatorId String   @unique
@@ -350,17 +359,32 @@ model FranchiseTransaction {
 }
 
 model Driver {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
+  driverId       String?   @unique
   firstName      String
   lastName       String
   middleName     String?
-  licenseNo      String   @unique
+  licenseNo      String    @unique
+  licenseExpiryDate DateTime?
   address        String
   contactNo      String
-  email          String   @unique
+  email          String?   @unique
   dateOfBirth    DateTime
-  status         String   @default("ACTIVE") // ACTIVE, SUSPENDED, REVOKED
+  status         String    @default("ACTIVE") // ACTIVE, SUSPENDED, REVOKED
   profilePicture String?
+  licenseFrontImage String?
+  licenseBackImage  String?
+
+  operatorId     String?
+  operator       Operator? @relation("OperatorDrivers", fields: [operatorId], references: [id], onDelete: SetNull)
+
+  newFranchiseId String?
+  newFranchise   NewFranchise? @relation("FranchiseDrivers", fields: [newFranchiseId], references: [id], onDelete: SetNull)
+
+  driverRole     String?   // "PRIMARY" | "SECONDARY"
+  assignedAt     DateTime?
+
+  attachmentHistory DriverAttachmentHistory[]
 
   mainTricycles  Tricycle[]  @relation("MainDriver")
   extraTricycles Tricycle[]  @relation("ExtraDriver")
@@ -499,4 +523,21 @@ model ItemAccounts {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model DriverAttachmentHistory {
+  id             String        @id @default(cuid())
+  driverId       String
+  driver         Driver        @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  operatorId     String?
+  operator       Operator?     @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  newFranchiseId String?
+  newFranchise   NewFranchise? @relation(fields: [newFranchiseId], references: [id], onDelete: SetNull)
+  driverRole     String        // "PRIMARY" | "SECONDARY"
+  action         String        // "ATTACHED" | "DETACHED" | "REPLACED"
+  attachedAt     DateTime      @default(now())
+  detachedAt     DateTime?
+  remarks        String?
+
+  createdAt      DateTime      @default(now())
 }

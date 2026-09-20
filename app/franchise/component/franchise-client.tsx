@@ -24,7 +24,8 @@ import { FranchiseList } from "./franchise-list";
 import { FranchiseFormModal } from "./franchise-form-modal";
 import { FranchiseAssignModal } from "./franchise-assign-modal";
 import { FranchiseUnassignDialog } from "./franchise-unassign-dialog";
-import { EnrollVehicleModal } from "./enroll-vehicle-modal";
+import { EnrollVehicleModal } from "@/app/vehicle/component/enroll-vehicle-modal";
+import { UnitDriversModal } from "@/app/driver/component/unit-drivers-modal";
 
 interface FranchiseClientProps {
   initialFranchises: any[];
@@ -57,6 +58,11 @@ export function FranchiseClient({
 
   const [unassignDialogOpen, setUnassignDialogOpen] = useState<boolean>(false);
   const [unassigningFranchise, setUnassigningFranchise] = useState<any | null>(null);
+
+  const [manageDriversFranchise, setManageDriversFranchise] = useState<any | null>(null);
+
+  const currentManageDriversFranchise =
+    initialFranchises.find((f) => f.id === manageDriversFranchise?.id) || manageDriversFranchise;
 
   // Refresh handler
   const handleRefresh = () => {
@@ -116,9 +122,17 @@ export function FranchiseClient({
         fr.mtopVehicle?.plateNumber?.toLowerCase().includes(term) ||
         fr.mtopVehicle?.make?.toLowerCase().includes(term) ||
         fr.mtopVehicle?.model?.toLowerCase().includes(term);
+      const driverMatch =
+        fr.drivers &&
+        fr.drivers.some(
+          (d: any) =>
+            `${d.firstName} ${d.lastName}`.toLowerCase().includes(term) ||
+            d.driverId?.toLowerCase().includes(term) ||
+            d.licenseNo?.toLowerCase().includes(term)
+        );
       const remarksMatch = fr.remarks?.toLowerCase().includes(term);
 
-      return bodyMatch || zoneMatch || operatorMatch || vehicleMatch || remarksMatch;
+      return bodyMatch || zoneMatch || operatorMatch || vehicleMatch || driverMatch || remarksMatch;
     });
   }, [initialFranchises, activeTab, searchTerm]);
 
@@ -287,6 +301,7 @@ export function FranchiseClient({
         onEdit={handleEdit}
         onUnassign={handleUnassign}
         onRefresh={handleRefresh}
+        onManageDrivers={setManageDriversFranchise}
       />
 
       {/* FORM MODAL (Create/Edit) */}
@@ -322,6 +337,23 @@ export function FranchiseClient({
         onOpenChange={setUnassignDialogOpen}
         franchise={unassigningFranchise}
         onSuccess={handleRefresh}
+      />
+
+      {/* MANAGE FRANCHISE DRIVERS MODAL */}
+      <UnitDriversModal
+        isOpen={Boolean(currentManageDriversFranchise)}
+        onClose={() => setManageDriversFranchise(null)}
+        targetType="franchise"
+        targetId={currentManageDriversFranchise?.id || ""}
+        targetTitle={`Franchise Body #${currentManageDriversFranchise?.franchiseBodyNumber}`}
+        targetSubtext={`Zone: ${currentManageDriversFranchise?.zone || "Tagbilaran City"}${
+          currentManageDriversFranchise?.operator ? ` • Operator: ${currentManageDriversFranchise.operator.name}` : ""
+        }`}
+        drivers={currentManageDriversFranchise?.drivers || []}
+        onSuccess={() => {
+          setManageDriversFranchise(null);
+          handleRefresh();
+        }}
       />
     </div>
   );

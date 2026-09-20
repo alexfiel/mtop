@@ -150,6 +150,21 @@ export async function getOperators() {
         },
       },
       vehicle: true,
+      drivers: {
+        select: {
+          id: true,
+          driverId: true,
+          firstName: true,
+          lastName: true,
+          middleName: true,
+          licenseNo: true,
+          contactNo: true,
+          status: true,
+          profilePicture: true,
+          driverRole: true,
+          assignedAt: true,
+        },
+      },
     },
   });
 }
@@ -164,6 +179,21 @@ export async function getOperatorById(id: string) {
         },
       },
       vehicle: true,
+      drivers: {
+        select: {
+          id: true,
+          driverId: true,
+          firstName: true,
+          lastName: true,
+          middleName: true,
+          licenseNo: true,
+          contactNo: true,
+          status: true,
+          profilePicture: true,
+          driverRole: true,
+          assignedAt: true,
+        },
+      },
     },
   });
 }

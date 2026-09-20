@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,8 +26,11 @@ import {
   Clock,
   Car,
   ExternalLink,
+  Users,
+  Star,
 } from "lucide-react";
 import { OperatorDetailModal } from "./operator-detail-modal";
+import { UnitDriversModal } from "@/app/driver/component/unit-drivers-modal";
 
 interface OperatorItem {
   id: string;
@@ -46,6 +50,7 @@ interface OperatorItem {
   createdAt: Date | string;
   newFranchise?: any;
   vehicle?: any;
+  drivers?: any[];
   [key: string]: any;
 }
 
@@ -55,9 +60,17 @@ interface OperatorListProps {
 }
 
 export function OperatorList({ operators, onAddNew }: OperatorListProps) {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOperator, setSelectedOperator] = useState<OperatorItem | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [manageDriversOperator, setManageDriversOperator] = useState<OperatorItem | null>(null);
+
+  const currentSelectedOperator =
+    operators.find((op) => op.id === selectedOperator?.id) || selectedOperator;
+
+  const currentManageDriversOperator =
+    operators.find((op) => op.id === manageDriversOperator?.id) || manageDriversOperator;
 
   const handleViewDetails = (op: OperatorItem) => {
     setSelectedOperator(op);
@@ -71,7 +84,8 @@ export function OperatorList({ operators, onAddNew }: OperatorListProps) {
       op.operatorId.toLowerCase().includes(term) ||
       op.email.toLowerCase().includes(term) ||
       op.mobileNo.includes(term) ||
-      op.validIDNumber.toLowerCase().includes(term)
+      op.validIDNumber.toLowerCase().includes(term) ||
+      (op.drivers && op.drivers.some((d: any) => `${d.firstName} ${d.lastName}`.toLowerCase().includes(term)))
     );
   });
 
@@ -110,6 +124,7 @@ export function OperatorList({ operators, onAddNew }: OperatorListProps) {
               <TableHead>Contact Info</TableHead>
               <TableHead>Valid ID Credential</TableHead>
               <TableHead>Franchise & Vehicle</TableHead>
+              <TableHead>Assigned Drivers (Max 2)</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-20 text-right">Action</TableHead>
             </TableRow>
@@ -117,7 +132,7 @@ export function OperatorList({ operators, onAddNew }: OperatorListProps) {
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <User className="h-8 w-8 text-muted-foreground/40" />
                     <p className="text-sm font-medium">No operators found</p>
@@ -132,6 +147,9 @@ export function OperatorList({ operators, onAddNew }: OperatorListProps) {
             ) : (
               filtered.map((op) => {
                 const attachedVehicle = op.vehicle || op.newFranchise?.mtopVehicle;
+                const primaryDriver = op.drivers?.find((d: any) => d.driverRole === "PRIMARY");
+                const secondaryDriver = op.drivers?.find((d: any) => d.driverRole === "SECONDARY");
+
                 return (
                   <TableRow key={op.id} className="hover:bg-muted/30">
                     {/* Photo */}
@@ -233,6 +251,47 @@ export function OperatorList({ operators, onAddNew }: OperatorListProps) {
                       </div>
                     </TableCell>
 
+                    {/* Assigned Drivers (Primary & Secondary) */}
+                    <TableCell>
+                      <div className="space-y-1">
+                        {primaryDriver || secondaryDriver ? (
+                          <div className="flex flex-col gap-1">
+                            {primaryDriver && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 font-bold gap-1 w-fit"
+                              >
+                                <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
+                                {primaryDriver.firstName} {primaryDriver.lastName}
+                              </Badge>
+                            )}
+                            {secondaryDriver && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] border-blue-500/40 text-blue-600 dark:text-blue-400 bg-blue-500/10 font-bold gap-1 w-fit"
+                              >
+                                <ShieldCheck className="h-2.5 w-2.5 text-blue-500" />
+                                {secondaryDriver.firstName} {secondaryDriver.lastName}
+                              </Badge>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">None (0/2)</span>
+                        )}
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => setManageDriversOperator(op)}
+                          className="text-[11px] h-6 px-1.5 text-primary hover:text-primary hover:bg-primary/10 gap-1 mt-0.5"
+                        >
+                          <Users className="h-3 w-3" />
+                          Manage Drivers
+                        </Button>
+                      </div>
+                    </TableCell>
+
                     {/* Status */}
                     <TableCell>
                       {op.status === "ACTIVE" ? (
@@ -271,7 +330,23 @@ export function OperatorList({ operators, onAddNew }: OperatorListProps) {
       <OperatorDetailModal
         open={detailModalOpen}
         onOpenChange={setDetailModalOpen}
-        operator={selectedOperator}
+        operator={currentSelectedOperator}
+        onRefresh={() => router.refresh()}
+      />
+
+      {/* MANAGE OPERATOR DRIVERS MODAL */}
+      <UnitDriversModal
+        isOpen={Boolean(currentManageDriversOperator)}
+        onClose={() => setManageDriversOperator(null)}
+        targetType="operator"
+        targetId={currentManageDriversOperator?.id || ""}
+        targetTitle={`Operator: ${currentManageDriversOperator?.name}`}
+        targetSubtext={`Operator ID: ${currentManageDriversOperator?.operatorId} • ${currentManageDriversOperator?.mobileNo}`}
+        drivers={currentManageDriversOperator?.drivers || []}
+        onSuccess={() => {
+          setManageDriversOperator(null);
+          router.refresh();
+        }}
       />
     </div>
   );

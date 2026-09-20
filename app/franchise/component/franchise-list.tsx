@@ -38,6 +38,12 @@ import {
   AlertCircle,
   ShieldCheck,
   Power,
+  Star,
+  Users,
+  UserPlus,
+  Eye,
+  ExternalLink,
+  X,
 } from "lucide-react";
 import { toggleFranchiseStatus, deleteNewFranchise } from "../actions";
 import { toast } from "sonner";
@@ -49,6 +55,12 @@ interface FranchiseListProps {
   onEdit: (franchise: any) => void;
   onUnassign: (franchise: any) => void;
   onRefresh: () => void;
+  onManageDrivers?: (franchise: any) => void;
+  onViewVehicle?: (vehicle: any, franchise: any) => void;
+  onViewDriver?: (driver: any, franchise: any) => void;
+  onViewOperator?: (operator: any, franchise: any) => void;
+  onClearSearch?: () => void;
+  onError?: (errorMessage: string) => void;
 }
 
 export function FranchiseList({
@@ -58,6 +70,12 @@ export function FranchiseList({
   onEdit,
   onUnassign,
   onRefresh,
+  onManageDrivers,
+  onViewVehicle,
+  onViewDriver,
+  onViewOperator,
+  onClearSearch,
+  onError,
 }: FranchiseListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -77,10 +95,14 @@ export function FranchiseList({
         toast.success(`Franchise Body #${franchise.franchiseBodyNumber} deleted.`);
         onRefresh();
       } else {
-        toast.error(res.error || "Failed to delete franchise.");
+        const msg = res.error || "Failed to delete franchise.";
+        toast.error(msg);
+        onError?.(msg);
       }
     } catch (err: any) {
-      toast.error(err.message || "An unexpected error occurred.");
+      const msg = err.message || "An unexpected error occurred while deleting.";
+      toast.error(msg);
+      onError?.(msg);
     } finally {
       setDeletingId(null);
     }
@@ -97,10 +119,14 @@ export function FranchiseList({
         );
         onRefresh();
       } else {
-        toast.error(res.error || "Failed to update status.");
+        const msg = res.error || "Failed to update franchise status.";
+        toast.error(msg);
+        onError?.(msg);
       }
     } catch (err: any) {
-      toast.error(err.message || "An error occurred.");
+      const msg = err.message || "An error occurred while updating status.";
+      toast.error(msg);
+      onError?.(msg);
     }
   };
 
@@ -132,6 +158,7 @@ export function FranchiseList({
             <TableHead className="w-44">Franchise Slot</TableHead>
             <TableHead>Assigned Operator</TableHead>
             <TableHead>MTOP Tricycle Vehicle</TableHead>
+            <TableHead>Assigned Drivers (Max 2)</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Assignment Date</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -141,6 +168,13 @@ export function FranchiseList({
           {franchises.map((fr) => {
             const isAssigned = fr.isAssigned && Boolean(fr.operator);
             const isActive = fr.isActive;
+            const drivers = fr.drivers || [];
+            const primaryDriver =
+              drivers.find((d: any) => d.driverRole === "PRIMARY") ||
+              (drivers.length > 0 && drivers.every((d: any) => d.driverRole !== "PRIMARY") ? drivers[0] : null);
+            const secondaryDriver =
+              drivers.find((d: any) => d.driverRole === "SECONDARY") ||
+              (drivers.length > 1 && primaryDriver ? drivers.find((d: any) => d.id !== primaryDriver.id) : null);
 
             return (
               <TableRow key={fr.id} className="hover:bg-muted/30 transition-colors">
@@ -228,6 +262,63 @@ export function FranchiseList({
                   ) : (
                     <span className="text-xs text-muted-foreground italic">No Vehicle Linked</span>
                   )}
+                </TableCell>
+
+                {/* Assigned Drivers (Max 2) */}
+                <TableCell>
+                  <div className="space-y-1.5 min-w-[170px]">
+                    {drivers.length > 0 ? (
+                      <div className="space-y-1">
+                        {primaryDriver && (
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 gap-1 px-1.5 py-0 text-[10px] font-medium shrink-0">
+                              <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
+                              Primary
+                            </Badge>
+                            <span className="font-medium text-foreground truncate">
+                              {primaryDriver.firstName} {primaryDriver.lastName}
+                            </span>
+                          </div>
+                        )}
+                        {secondaryDriver && (
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 gap-1 px-1.5 py-0 text-[10px] font-medium shrink-0">
+                              <ShieldCheck className="h-2.5 w-2.5 text-blue-500" />
+                              Relief
+                            </Badge>
+                            <span className="font-medium text-foreground truncate">
+                              {secondaryDriver.firstName} {secondaryDriver.lastName}
+                            </span>
+                          </div>
+                        )}
+                        <div className="pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => onManageDrivers?.(fr)}
+                            className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                          >
+                            <Users className="h-3 w-3" />
+                            Manage Drivers ({drivers.length}/2)
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="border-dashed text-[10px] text-muted-foreground">
+                          0/2 Drivers
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onManageDrivers?.(fr)}
+                          className="h-6 px-2 text-[10px] gap-1 border-dashed hover:border-primary hover:text-primary"
+                        >
+                          <UserPlus className="h-3 w-3" />
+                          Assign
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </TableCell>
 
                 {/* Status */}
@@ -325,6 +416,14 @@ export function FranchiseList({
                             Release / Unassign
                           </DropdownMenuItem>
                         )}
+
+                        <DropdownMenuItem
+                          onClick={() => onManageDrivers?.(fr)}
+                          className="gap-2 cursor-pointer text-primary"
+                        >
+                          <Users className="h-3.5 w-3.5" />
+                          Manage Drivers ({drivers.length}/2)
+                        </DropdownMenuItem>
 
                         <DropdownMenuSeparator />
 

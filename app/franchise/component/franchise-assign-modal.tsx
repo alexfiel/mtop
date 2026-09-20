@@ -25,8 +25,9 @@ import {
   Search,
   ChevronRight,
 } from "lucide-react";
-import { assignOperatorAndVehicle, MTOPVehicleInput } from "../actions";
-import { EnrollVehicleForm } from "./enroll-vehicle-form";
+import { assignOperatorAndVehicle } from "../actions";
+import type { MTOPVehicleInput } from "@/app/vehicle/types";
+import { EnrollVehicleForm } from "@/app/vehicle/component/enroll-vehicle-form";
 
 interface FranchiseAssignModalProps {
   open: boolean;

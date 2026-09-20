@@ -21,20 +21,8 @@ export interface UpdateNewFranchiseInput {
   remarks?: string;
 }
 
-export interface MTOPVehicleInput {
-  registeredOwnerName: string;
-  registeredAddress: string;
-  make: string;
-  model: string;
-  year: number;
-  plateNumber: string;
-  engineNumber: string;
-  chassisNumber: string;
-  color: string;
-  registrationNumber: string;
-  operatorId?: string;
-  userId?: string;
-}
+import type { MTOPVehicleInput } from "@/app/vehicle/types";
+import { enrollMTOPVehicle as enrollVehicleAction } from "@/app/vehicle/actions";
 
 export interface AssignOperatorVehicleInput {
   franchiseId: string;
@@ -218,7 +206,7 @@ export async function batchGenerateFranchiseRange(
  */
 export async function getNewFranchises() {
   try {
-    return await prisma.newFranchise.findMany({
+    const franchises = await prisma.newFranchise.findMany({
       orderBy: { franchiseBodyNumber: "asc" },
       include: {
         operator: {
@@ -231,6 +219,33 @@ export async function getNewFranchises() {
             profilePicture: true,
             address: true,
             status: true,
+            validIDType: true,
+            validIDNumber: true,
+            validIdFront: true,
+            validIdBack: true,
+            isVerified: true,
+            createdAt: true,
+            drivers: {
+              select: {
+                id: true,
+                driverId: true,
+                firstName: true,
+                lastName: true,
+                middleName: true,
+                licenseNo: true,
+                contactNo: true,
+                status: true,
+                profilePicture: true,
+                driverRole: true,
+                assignedAt: true,
+                dateOfBirth: true,
+                address: true,
+                email: true,
+                licenseExpiryDate: true,
+                licenseFrontImage: true,
+                licenseBackImage: true,
+              },
+            },
           },
         },
         mtopVehicle: {
@@ -246,9 +261,48 @@ export async function getNewFranchises() {
             registrationNumber: true,
             registeredOwnerName: true,
             registeredAddress: true,
+            vehicleImage: true,
+            ltoCrDocument: true,
+            ltoOrDocument: true,
+          },
+        },
+        drivers: {
+          select: {
+            id: true,
+            driverId: true,
+            firstName: true,
+            lastName: true,
+            middleName: true,
+            licenseNo: true,
+            contactNo: true,
+            status: true,
+            profilePicture: true,
+            driverRole: true,
+            assignedAt: true,
+            dateOfBirth: true,
+            address: true,
+            email: true,
+            licenseExpiryDate: true,
+            licenseFrontImage: true,
+            licenseBackImage: true,
           },
         },
       },
+    });
+
+    return franchises.map((fr) => {
+      const driverMap = new Map();
+      (fr.drivers || []).forEach((d) => driverMap.set(d.id, d));
+      (fr.operator?.drivers || []).forEach((d) => {
+        if (!driverMap.has(d.id)) {
+          driverMap.set(d.id, d);
+        }
+      });
+
+      return {
+        ...fr,
+        drivers: Array.from(driverMap.values()),
+      };
     });
   } catch (error) {
     console.error("Error fetching franchises:", error);
@@ -424,84 +478,10 @@ export async function updateNewFranchise(id: string, data: UpdateNewFranchiseInp
 
 /**
  * Enroll a new vehicle using Prisma model MTOPVehicle
+ * (Delegates to @/app/vehicle/actions)
  */
 export async function enrollMTOPVehicle(data: MTOPVehicleInput) {
-  try {
-    const db = await getAuditDb();
-
-    if (!data.operatorId) {
-      return { success: false, error: "Operator ID is required to enroll an MTOP Vehicle." };
-    }
-    if (!data.plateNumber?.trim()) {
-      return { success: false, error: "Plate Number is required." };
-    }
-    if (!data.registrationNumber?.trim()) {
-      return { success: false, error: "Registration / CR Number is required." };
-    }
-    if (!data.registeredOwnerName?.trim() || !data.registeredAddress?.trim()) {
-      return { success: false, error: "Registered Owner Name and Address are required." };
-    }
-    if (!data.make?.trim() || !data.model?.trim()) {
-      return { success: false, error: "Vehicle Make and Model are required." };
-    }
-    if (!data.color?.trim()) {
-      return { success: false, error: "Color scheme is required." };
-    }
-    if (!data.engineNumber?.trim() || !data.chassisNumber?.trim()) {
-      return { success: false, error: "Engine Number and Chassis Number are required." };
-    }
-
-    const plate = data.plateNumber.trim().toUpperCase();
-    const regNo = data.registrationNumber.trim().toUpperCase();
-
-    // Check unique constraints
-    const existing = await prisma.mTOPVehicle.findFirst({
-      where: {
-        OR: [
-          { plateNumber: plate },
-          { registrationNumber: regNo },
-          { operatorId: data.operatorId },
-        ],
-      },
-    });
-
-    if (existing) {
-      if (existing.plateNumber === plate) {
-        return { success: false, error: `Vehicle with Plate '${plate}' already exists.` };
-      }
-      if (existing.registrationNumber === regNo) {
-        return { success: false, error: `Vehicle with Registration '${regNo}' already exists.` };
-      }
-      if (existing.operatorId === data.operatorId) {
-        return { success: false, error: "This operator already has an enrolled vehicle." };
-      }
-    }
-
-    const vehicle = await db.mTOPVehicle.create({
-      data: {
-        registeredOwnerName: data.registeredOwnerName.trim(),
-        registeredAddress: data.registeredAddress.trim(),
-        make: data.make.trim(),
-        model: data.model.trim(),
-        year: Number(data.year) || new Date().getFullYear(),
-        plateNumber: plate,
-        engineNumber: data.engineNumber.trim().toUpperCase(),
-        chassisNumber: data.chassisNumber.trim().toUpperCase(),
-        color: data.color.trim(),
-        registrationNumber: regNo,
-        operatorId: data.operatorId,
-      },
-      include: {
-        operator: true,
-      },
-    });
-
-    safeRevalidate();
-    return { success: true, vehicle };
-  } catch (error: any) {
-    console.error("Error enrolling MTOPVehicle:", error);
-    return { success: false, error: error.message || "Failed to enroll MTOP vehicle." };
-  }
+  return enrollVehicleAction(data);
 }
 
 /**
@@ -582,6 +562,9 @@ export async function assignOperatorAndVehicle(input: AssignOperatorVehicleInput
             color: input.newVehicle.color.trim(),
             registrationNumber: registrationNumber.trim().toUpperCase(),
             operatorId: operator.id,
+            vehicleImage: input.newVehicle.vehicleImage || null,
+            ltoCrDocument: input.newVehicle.ltoCrDocument || null,
+            ltoOrDocument: input.newVehicle.ltoOrDocument || null,
           },
         });
         resolvedVehicleId = createdVehicle.id;

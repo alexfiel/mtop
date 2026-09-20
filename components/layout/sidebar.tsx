@@ -69,7 +69,7 @@ export async function Sidebar() {
 
               <SidebarMenuItem>
                 <SidebarMenuButton render={
-                  <Link href="/drivers">
+                  <Link href="/driver">
                     <Users />
                     <span>Drivers & Operators</span>
                   </Link>
@@ -112,9 +112,9 @@ export async function Sidebar() {
 
               <SidebarMenuItem>
                 <SidebarMenuButton render={
-                  <Link href="/tricycles">
+                  <Link href="/vehicle">
                     <Car />
-                    <span>Tricycles & Permits</span>
+                    <span>Registered Vehicles</span>
                   </Link>
                 } />
               </SidebarMenuItem>
