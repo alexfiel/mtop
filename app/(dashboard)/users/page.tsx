@@ -1,18 +1,22 @@
-import { getUsers, getRoles } from "./actions";
-import { UserList } from "./components/user-list";
+import { getUsers, getRoles, getDomains } from "./actions";
+import { UserManagementTabs } from "./components/user-management-tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { Suspense } from "react";
 
 export const metadata = {
-  title: "Users Management | MTOP",
-  description: "Manage system users and roles.",
+  title: "Users & Domains Management | MTOP",
+  description: "Manage system users, municipal workflow domains, and administrative roles.",
 };
 
 export default async function UsersPage() {
-  const result = await getUsers();
-  const rolesResult = await getRoles();
+  const [usersResult, rolesResult, domainsResult] = await Promise.all([
+    getUsers(),
+    getRoles(),
+    getDomains(),
+  ]);
 
-  if (!result.success || !result.users) {
+  if (!usersResult.success || !usersResult.users) {
     return (
       <div className="flex-1 flex items-center justify-center p-6 min-h-[calc(100vh-8rem)]">
         <div className="max-w-md w-full animate-in fade-in zoom-in duration-300">
@@ -20,7 +24,7 @@ export default async function UsersPage() {
             <AlertCircle className="h-5 w-5" />
             <AlertTitle className="text-lg font-semibold mb-2">Access Denied</AlertTitle>
             <AlertDescription className="text-sm">
-              {result.error || "Failed to load users. Please try again."}
+              {usersResult.error || "Failed to load users. Super Admin or Admin role required."}
             </AlertDescription>
           </Alert>
         </div>
@@ -28,9 +32,15 @@ export default async function UsersPage() {
     );
   }
 
+  const users = usersResult.users as any;
+  const roles = (rolesResult.roles || []) as any;
+  const domains = (domainsResult.domains || []) as any;
+
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      <UserList users={result.users as any} roles={rolesResult.roles || []} />
+    <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
+      <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading Management Console...</div>}>
+        <UserManagementTabs users={users} roles={roles} domains={domains} />
+      </Suspense>
     </div>
   );
 }

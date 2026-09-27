@@ -147,4 +147,75 @@ export class TrafficDomainService {
 
     return updated;
   }
+
+  /**
+   * 3. Forward Cleared Application to SP for Franchise Resolution
+   * "if City Traffic issued clearance submit application to SP for Franchise Resolution"
+   */
+  public static async forwardToSPForResolution(
+    applicationId: string,
+    currentTaskId: string,
+    actor: WorkflowActor,
+    remarks?: string
+  ) {
+    WorkflowStateMachine.validateDomainBarrier(actor, "TRAFFIC");
+    WorkflowStateMachine.validateRolePrerequisite(actor, "SUPERVISOR");
+
+    // Guard: Verify traffic clearance passed and official certificate issued
+    await WorkflowStateMachine.validateTrafficClearanceGuard(applicationId);
+
+    const application = await prisma.franchiseApplication.findUnique({
+      where: { id: applicationId },
+      include: { trafficClearance: true, newFranchise: true },
+    });
+
+    if (!application) {
+      throw new StateMachineError("Application not found.", 404);
+    }
+
+    const certNo = application.trafficClearance?.certificateNo || "CTMO-CLR";
+
+    return await prisma.$transaction(async (tx) => {
+      // Complete active traffic task
+      if (currentTaskId) {
+        await tx.franchiseTasks.update({
+          where: { id: currentTaskId },
+          data: {
+            taskdesc: `Traffic clearance #${certNo} issued by ${actor.name}. Endorsed to Sangguniang Panlungsod.`,
+            updatedAt: new Date(),
+          },
+        });
+      }
+
+      // Create SP Resolution Task
+      const spTask = await tx.franchiseTasks.create({
+        data: {
+          office: "SP",
+          taskname: "Franchise Renewal Resolution Enactment",
+          taskdesc: `Review docket with Traffic Clearance #${certNo}. Enact SP Resolution for Franchise Body #${application.newFranchise?.franchiseBodyNumber || application.id}.`,
+          userId: actor.id,
+          newFranchiseId: application.newFranchiseId,
+        },
+      });
+
+      // Update application: currentDomain = "SP", status = "SP_RESOLUTION_PENDING"
+      const updatedApp = await tx.franchiseApplication.update({
+        where: { id: applicationId },
+        data: {
+          currentDomain: "SP",
+          status: "SP_RESOLUTION_PENDING",
+          taskId: spTask.id,
+          remarks: remarks
+            ? `${application.remarks || ""}\n[CTMO Cleared]: ${remarks}`
+            : application.remarks,
+        },
+      });
+
+      return {
+        application: updatedApp,
+        spTask,
+      };
+    });
+  }
 }
+

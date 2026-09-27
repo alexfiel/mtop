@@ -5,9 +5,9 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,21 +15,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import {
   CheckCircle2,
   Clock,
@@ -39,20 +29,17 @@ import {
   Building2,
   FileText,
   AlertCircle,
-  History,
-  Send,
-  User,
-  Hash,
-  Sparkles,
-  Lock,
-  RefreshCw,
-  PlusCircle,
   Car,
   Receipt,
   Scale,
   Award,
   CreditCard,
-  ExternalLink,
+  Printer,
+  BookOpen,
+  Send,
+  Sparkles,
+  RefreshCw,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -61,6 +48,15 @@ import {
   WorkflowTaskStatus,
   WorkflowUserRole,
 } from "@/lib/workflow/types";
+import {
+  issueTrafficClearanceAndForwardAction,
+  issueSPResolutionAction,
+  issueSPBillingAndSubmitToTreasuryAction,
+  verifyTreasuryPaymentAction,
+  printAndPublishFranchiseRenewalAction,
+  releaseFranchiseRenewalAction,
+} from "@/app/franchise/renewal-actions";
+import { FranchiseBillingEngine } from "@/lib/workflow/billing-calculator";
 
 export type DomainType = WorkflowDomain;
 export type UserRoleType = WorkflowUserRole;
@@ -73,6 +69,12 @@ export interface FranchiseApplicationRecord {
   bodyNumber: number;
   currentDomain: WorkflowDomain;
   status: ApplicationWorkflowStatus;
+  lastRenewalYear?: number;
+  priorResolutionNo?: string;
+  priorResolutionDate?: string;
+  resolutionNo?: string | null;
+  resolutionDate?: string | null;
+  remarks?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -102,6 +104,7 @@ interface FranchiseApplicationProps {
       name?: string;
       firstName?: string;
       lastName?: string;
+      address?: string;
       contactNumber?: string | null;
       mobileNo?: string | null;
     } | null;
@@ -109,11 +112,13 @@ interface FranchiseApplicationProps {
       id?: string;
       plateNumber?: string;
       make?: string | null;
+      model?: string | null;
     } | null;
     mtopVehicle?: {
       id?: string;
       plateNumber?: string;
       make?: string | null;
+      model?: string | null;
     } | null;
   };
   currentUser?: {
@@ -128,7 +133,7 @@ interface FranchiseApplicationProps {
   onRefresh?: () => void;
 }
 
-const DOMAIN_STAGES: Array<{
+const RENEWAL_PIPELINE_STAGES: Array<{
   domain: WorkflowDomain;
   label: string;
   taskName: string;
@@ -136,41 +141,55 @@ const DOMAIN_STAGES: Array<{
   description: string;
 }> = [
   {
-    domain: "TRAFFIC",
-    label: "1. City Traffic (CTMO)",
-    taskName: "Vehicle Inspection & Clearance",
+    domain: "BPLO",
+    label: "1. BPLO Intake",
+    taskName: "Franchise Intake & Delinquency",
     requiredRole: "STAFF",
-    description: "Physical unit inspection, engine/chassis verification, and violation registry clearance",
+    description: "Check franchise name, find Last Renewal Year, capture resolution details & log taskId",
   },
   {
-    domain: "BPLO",
-    label: "2. BPLO Intake & Vetting",
-    taskName: "Statutory Check & Delinquency",
+    domain: "TRAFFIC",
+    label: "2. City Traffic (CTMO)",
+    taskName: "Clearance & Inspection",
     requiredRole: "STAFF",
-    description: "Intake documentation, historical renewal check, and delinquency tax computation",
+    description: "Engine, chassis, roadworthiness check & traffic clearance certificate issuance",
   },
   {
     domain: "SP",
     label: "3. Sangguniang Panlungsod",
-    taskName: "Legislative Assessment & Resolution",
+    taskName: "Franchise Renewal Resolution",
     requiredRole: "SUPERVISOR",
-    description: "Legislative tax billing, Order of the Day agenda, council vote, and certificate issuance",
+    description: "SP issues council resolution number & date for 3-year franchise renewal",
   },
   {
     domain: "TREASURY",
     label: "4. Treasury (eTRACS)",
-    taskName: "Payment & OR Reconciliation",
+    taskName: "Renewal Billing & Payment",
     requiredRole: "STAFF",
-    description: "Automated billing ingestion, payment webhook reconciliation, and official receipt audit",
+    description: "SP issues ₱6,000/3-yr renewal billing; Treasury checks payment OK & returns to SP",
+  },
+  {
+    domain: "SP",
+    label: "5. SP Printing & Gazette",
+    taskName: "Certificate & Publication",
+    requiredRole: "STAFF",
+    description: "SP prints official Franchise Renewal and records in LGU publication gazette",
+  },
+  {
+    domain: "SP",
+    label: "6. SP Final Release",
+    taskName: "Release Renewal (End)",
+    requiredRole: "SUPERVISOR",
+    description: "SP releases the sealed 3-year Franchise Renewal to the operator",
   },
 ];
 
 export function FranchiseApplication({
   franchise,
   currentUser = {
-    id: "user-ctmo-101",
-    name: "Engr. Roberto Santos",
-    domain: "TRAFFIC",
+    id: "user-bplo-101",
+    name: "Elena Vasquez",
+    domain: "BPLO",
     role: "STAFF",
   },
   initialApplication = null,
@@ -187,94 +206,64 @@ export function FranchiseApplication({
   const vehiclePlateDisplay =
     franchise.vehicle?.plateNumber ?? franchise.mtopVehicle?.plateNumber ?? "TAG-7102";
 
-  // Core state
+  // Core application and task state
   const [application, setApplication] = useState<FranchiseApplicationRecord | null>(initialApplication);
   const [activeTask, setActiveTask] = useState<FranchiseTaskRecord | null>(initialTask);
   const [taskHistory, setTaskHistory] = useState<FranchiseTaskRecord[]>(initialTask ? [initialTask] : []);
-  const [activeTab, setActiveTab] = useState<string>("workflow");
+  const [activeTab, setActiveTab] = useState<string>("pipeline");
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // CTMO Specific State
+  // 1. City Traffic (CTMO) State
   const [ctmoEngineVerified, setCtmoEngineVerified] = useState(true);
   const [ctmoRoadworthy, setCtmoRoadworthy] = useState(true);
   const [ctmoBrakesLights, setCtmoBrakesLights] = useState(true);
   const [ctmoViolationsCount, setCtmoViolationsCount] = useState(0);
   const [ctmoClearanceCert, setCtmoClearanceCert] = useState<string | null>(null);
 
-  // BPLO Specific State
-  const [bploStatutoryVerified, setBploStatutoryVerified] = useState(true);
-  const [bploExpiredYears, setBploExpiredYears] = useState(1);
-  const [bploDelinquencyBillRef, setBploDelinquencyBillRef] = useState<string | null>(null);
-  const [bploDelinquencyPaid, setBploDelinquencyPaid] = useState(false);
-  const [bploOrNumber, setBploOrNumber] = useState<string | null>(null);
+  // 2. SP Resolution State
+  const [spResNumber, setSpResNumber] = useState<string>("SP-RES-2026-042");
+  const [spResDate, setSpResDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [spSessionNumber, setSpSessionNumber] = useState<string>("38th Regular Legislative Session");
+  const [spResolutionIssued, setSpResolutionIssued] = useState<boolean>(false);
 
-  // SP Specific State
-  const [spBillingRef, setSpBillingRef] = useState<string | null>(null);
-  const [spBillingPaid, setSpBillingPaid] = useState(false);
-  const [spOrNumber, setSpOrNumber] = useState<string | null>(null);
-  const [spOrderDate, setSpOrderDate] = useState<string>("");
-  const [spResolutionNo, setSpResolutionNo] = useState<string | null>(null);
-  const [spVotingResult, setSpVotingResult] = useState<"APPROVED" | "DISAPPROVED" | null>(null);
+  // 3. SP Billing & Treasury State
+  const [spRenewalBillingRef, setSpRenewalBillingRef] = useState<string | null>(null);
+  const [treasuryOrNumber, setTreasuryOrNumber] = useState<string>("OR-TAG-2026-881920");
+  const [treasuryPaymentConfirmed, setTreasuryPaymentConfirmed] = useState<boolean>(false);
 
-  // Final Release State
-  const [finalPermitNumber, setFinalPermitNumber] = useState<string | null>(null);
+  // 4. SP Printing & Publication State
+  const [spPrinted, setSpPrinted] = useState<boolean>(false);
+  const [spGazette, setSpGazette] = useState<string>("Tagbilaran City Official Gazette & SP Bulletin (Vol. 42)");
+  const [spPublished, setSpPublished] = useState<boolean>(false);
+
+  // 5. SP Final Release State
+  const [spReleased, setSpReleased] = useState<boolean>(false);
+  const [releasedAtTimestamp, setReleasedAtTimestamp] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialApplication) {
       setApplication(initialApplication);
+      if (initialApplication.status === "TRAFFIC_CLEARED" || initialApplication.currentDomain === "SP") {
+        setCtmoClearanceCert(`CTMO-CLR-2026-${bodyNumber}`);
+      }
+      if (initialApplication.resolutionNo) {
+        setSpResNumber(initialApplication.resolutionNo);
+        setSpResolutionIssued(true);
+      }
     }
     if (initialTask) {
       setActiveTask(initialTask);
       setTaskHistory([initialTask]);
     }
-  }, [initialApplication, initialTask]);
+  }, [initialApplication, initialTask, bodyNumber]);
 
-  // 1. Intake Capture
-  const handleCaptureApplication = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const appId = `MTOP-2026-${String(bodyNumber).padStart(4, "0")}`;
-      const newApp: FranchiseApplicationRecord = {
-        id: `app-${Date.now()}`,
-        franchiseId: franchise.id,
-        applicationNumber: appId,
-        applicantName: applicantDisplayName,
-        bodyNumber,
-        currentDomain: "TRAFFIC",
-        status: "UNDER_INSPECTION",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      const initialTaskRecord: FranchiseTaskRecord = {
-        id: `task-${Date.now()}-ctmo`,
-        applicationId: newApp.id,
-        domain: "TRAFFIC",
-        taskName: "Vehicle Inspection & Clearance",
-        requiredRole: "STAFF",
-        status: "PENDING",
-        assignedUserId: null,
-        assignedUserName: null,
-        startedAt: null,
-        completedAt: null,
-        remarks: "Intake registered. Enqueued for CTMO physical vehicle inspection.",
-      };
-
-      setApplication(newApp);
-      setActiveTask(initialTaskRecord);
-      setTaskHistory([initialTaskRecord]);
-      setIsProcessing(false);
-      toast.success(`Application ${appId} initialized into CTMO Queue.`);
-    }, 400);
-  };
-
-  // 2. Claim Task ("Assign to Me")
+  // Claim Active Task
   const handleAssignToMe = () => {
     if (!activeTask) return;
 
     if (currentUser.domain !== activeTask.domain && currentUser.role !== "ADMIN") {
       toast.error(
-        `Domain Isolation: You are in ${currentUser.domain}, but this task belongs to ${activeTask.domain}.`
+        `Domain Isolation: You belong to ${currentUser.domain}, but this task is in ${activeTask.domain}.`
       );
       return;
     }
@@ -287,238 +276,252 @@ export function FranchiseApplication({
         assignedUserId: currentUser.id,
         assignedUserName: currentUser.name,
         startedAt: new Date().toISOString(),
-        remarks: `Claimed by ${currentUser.name} (${currentUser.role}).`,
       };
       setActiveTask(updated);
       setTaskHistory((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setIsProcessing(false);
-      toast.success(`Task claimed: ${updated.taskName}`);
+      toast.success(`Task '${activeTask.taskName}' claimed by ${currentUser.name}.`);
     }, 300);
   };
 
-  // 3. CTMO: Issue Traffic Clearance
-  const handleIssueTrafficClearance = () => {
+  // STEP 2: City Traffic Clearance -> Submit to SP for Resolution
+  const handleIssueClearanceAndSubmitToSP = async () => {
     if (!ctmoEngineVerified || !ctmoRoadworthy || !ctmoBrakesLights) {
-      toast.error("Vehicle inspection checklist incomplete.");
+      toast.error("CTMO Checklist Incomplete: Unit physical inspection must pass.");
       return;
     }
     if (ctmoViolationsCount > 0) {
-      toast.error("Unsettled traffic violations exist. Settle fines first.");
+      toast.error("CTMO Guard: Unsettled violations exist. Fines must be cleared first.");
       return;
     }
 
     setIsProcessing(true);
-    setTimeout(() => {
-      const certNo = `CTMO-CLR-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-      setCtmoClearanceCert(certNo);
+    const certNo = `CTMO-CLR-2026-${String(bodyNumber).padStart(4, "0")}`;
+    setCtmoClearanceCert(certNo);
 
-      if (application && activeTask) {
-        const completedTask: FranchiseTaskRecord = {
-          ...activeTask,
-          status: "COMPLETED",
-          completedAt: new Date().toISOString(),
-          remarks: `Inspection passed. Issued Certificate #${certNo}.`,
-        };
+    if (application && activeTask) {
+      const completedTask: FranchiseTaskRecord = {
+        ...activeTask,
+        status: "COMPLETED",
+        completedAt: new Date().toISOString(),
+        remarks: `Physical inspection passed. Issued Traffic Clearance Certificate #${certNo}.`,
+      };
 
-        const nextTask: FranchiseTaskRecord = {
-          id: `task-${Date.now()}-bplo`,
-          applicationId: application.id,
-          domain: "BPLO",
-          taskName: "Statutory Check & Delinquency",
-          requiredRole: "STAFF",
-          status: "PENDING",
-          assignedUserId: null,
-          assignedUserName: null,
-          startedAt: null,
-          completedAt: null,
-          remarks: "Received from CTMO with verified Traffic Clearance Certificate.",
-        };
+      const spTask: FranchiseTaskRecord = {
+        id: `task-${Date.now()}-sp-resolution`,
+        applicationId: application.id,
+        domain: "SP",
+        taskName: "SP Franchise Resolution Enactment",
+        requiredRole: "SUPERVISOR",
+        status: "PENDING",
+        assignedUserId: null,
+        assignedUserName: null,
+        startedAt: null,
+        completedAt: null,
+        remarks: `City Traffic issued clearance #${certNo}. Forwarded to SP for Franchise Resolution.`,
+      };
 
-        setApplication({
-          ...application,
-          currentDomain: "BPLO",
-          status: "TRAFFIC_CLEARED",
-          updatedAt: new Date().toISOString(),
-        });
-        setActiveTask(nextTask);
-        setTaskHistory((prev) => [...prev.map((t) => (t.id === completedTask.id ? completedTask : t)), nextTask]);
-      }
-
-      setIsProcessing(false);
-      toast.success(`Traffic Clearance ${certNo} issued! Routed to BPLO.`);
-    }, 450);
-  };
-
-  // 4. BPLO: Delinquency eTRACS Billing
-  const handleGenerateDelinquencyBill = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const billRef = `ETRACS-DELINQ-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-      setBploDelinquencyBillRef(billRef);
-      setBploDelinquencyPaid(false);
-      setIsProcessing(false);
-      toast.success(`Delinquency Billing ${billRef} dispatched to eTRACS Treasury.`);
-    }, 400);
-  };
-
-  // 5. BPLO: Forward to SP (Guard: CTMO Clearance & Delinquency Paid)
-  const handleForwardToSP = () => {
-    if (!ctmoClearanceCert) {
-      toast.error("Transition Guard Failed: Must have verified CTMO Traffic Clearance Certificate.");
-      return;
+      setApplication({
+        ...application,
+        currentDomain: "SP",
+        status: "SP_RESOLUTION_PENDING",
+        updatedAt: new Date().toISOString(),
+      });
+      setActiveTask(spTask);
+      setTaskHistory((prev) => [...prev.map((t) => (t.id === completedTask.id ? completedTask : t)), spTask]);
     }
-    if (bploDelinquencyBillRef && !bploDelinquencyPaid) {
-      toast.error("Transition Guard Failed: Delinquency billing in eTRACS is still UNPAID.");
+
+    setIsProcessing(false);
+    toast.success(`City Traffic issued clearance #${certNo}! Submitted to SP for Franchise Resolution.`);
+  };
+
+  // STEP 3: SP Issues Resolution Number for Franchise Renewal
+  const handleIssueSPResolution = async () => {
+    if (!spResNumber.trim()) {
+      toast.error("Please enter a valid SP Resolution Number.");
       return;
     }
 
     setIsProcessing(true);
-    setTimeout(() => {
-      if (application && activeTask) {
-        const completedTask: FranchiseTaskRecord = {
-          ...activeTask,
-          status: "COMPLETED",
-          completedAt: new Date().toISOString(),
-          remarks: "BPLO statutory and delinquency review cleared. Endorsed to Sangguniang Panlungsod.",
-        };
+    setSpResolutionIssued(true);
 
-        const nextTask: FranchiseTaskRecord = {
-          id: `task-${Date.now()}-sp`,
-          applicationId: application.id,
-          domain: "SP",
-          taskName: "Legislative Assessment & Resolution",
-          requiredRole: "SUPERVISOR",
-          status: "PENDING",
-          assignedUserId: null,
-          assignedUserName: null,
-          startedAt: null,
-          completedAt: null,
-          remarks: "Queued for legislative assessment and council hearing.",
-        };
+    if (application && activeTask) {
+      const updatedApp: FranchiseApplicationRecord = {
+        ...application,
+        resolutionNo: spResNumber,
+        resolutionDate: spResDate,
+        status: "SP_RESOLUTION_ISSUED",
+        updatedAt: new Date().toISOString(),
+      };
 
-        setApplication({
-          ...application,
-          currentDomain: "SP",
-          status: "READY_FOR_SP",
-          updatedAt: new Date().toISOString(),
-        });
-        setActiveTask(nextTask);
-        setTaskHistory((prev) => [...prev.map((t) => (t.id === completedTask.id ? completedTask : t)), nextTask]);
-      }
-      setIsProcessing(false);
-      toast.success("Application successfully routed to Sangguniang Panlungsod!");
-    }, 450);
+      const updatedTask: FranchiseTaskRecord = {
+        ...activeTask,
+        status: "ASSIGNED",
+        remarks: `SP Resolution #${spResNumber} enacted on ${spResDate} in ${spSessionNumber}. Ready to issue renewal billing.`,
+      };
+
+      setApplication(updatedApp);
+      setActiveTask(updatedTask);
+    }
+
+    setIsProcessing(false);
+    toast.success(`SP issued Resolution #${spResNumber} for Franchise Renewal.`);
   };
 
-  // 6. SP: Legislative Assessment eTRACS Billing
-  const handleGenerateSpBilling = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const billRef = `ETRACS-SP-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-      setSpBillingRef(billRef);
-      setSpBillingPaid(false);
-      setIsProcessing(false);
-      toast.success(`Legislative Assessment ${billRef} registered in eTRACS Treasury.`);
-    }, 400);
-  };
-
-  // 7. SP: Council Hearing & Resolution Vote (Guard: Legislative Tax Paid)
-  const handleCouncilVote = (decision: "APPROVED" | "DISAPPROVED") => {
-    if (spBillingRef && !spBillingPaid) {
-      toast.error("Transition Guard Failed: Franchise assessment fees must be paid in eTRACS before council hearing.");
+  // STEP 4: SP Issues Billing for Franchise Renewal & Submits to Treasury
+  const handleIssueSPBillingAndSubmitToTreasury = async () => {
+    if (!spResolutionIssued) {
+      toast.error("SP Resolution must be issued first.");
       return;
     }
 
     setIsProcessing(true);
-    setTimeout(() => {
-      const resNo = `SP-RES-2026-${Math.floor(100 + Math.random() * 900)}`;
-      setSpResolutionNo(resNo);
-      setSpVotingResult(decision);
+    const billRef = `ETRACS-SP-REN-2026-${String(bodyNumber).padStart(4, "0")}`;
+    setSpRenewalBillingRef(billRef);
 
-      if (application && activeTask) {
-        const completedTask: FranchiseTaskRecord = {
-          ...activeTask,
-          status: "COMPLETED",
-          completedAt: new Date().toISOString(),
-          remarks: `Council voted ${decision}. Resolution #${resNo}. Signed Certificate generated.`,
-        };
+    if (application && activeTask) {
+      const completedTask: FranchiseTaskRecord = {
+        ...activeTask,
+        status: "COMPLETED",
+        completedAt: new Date().toISOString(),
+        remarks: `SP issued 3-Year Renewal Billing ${billRef} (₱8,600). Docket submitted to Treasury for payment.`,
+      };
 
-        const nextTask: FranchiseTaskRecord = {
-          id: `task-${Date.now()}-final`,
-          applicationId: application.id,
-          domain: "BPLO",
-          taskName: "Executive Permit Final Release",
-          requiredRole: "ADMIN",
-          status: "PENDING",
-          assignedUserId: null,
-          assignedUserName: null,
-          startedAt: null,
-          completedAt: null,
-          remarks: `Docket returned to BPLO with ${decision} SP Resolution #${resNo}. Ready for permit issuance.`,
-        };
+      const treasuryTask: FranchiseTaskRecord = {
+        id: `task-${Date.now()}-treasury-payment`,
+        applicationId: application.id,
+        domain: "TREASURY",
+        taskName: "Treasury Payment & OR Verification",
+        requiredRole: "STAFF",
+        status: "PENDING",
+        assignedUserId: null,
+        assignedUserName: null,
+        startedAt: null,
+        completedAt: null,
+        remarks: `Treasury to check payment for Billing Ref ${billRef} under SP Resolution #${spResNumber}.`,
+      };
 
-        setApplication({
-          ...application,
-          currentDomain: "BPLO",
-          status: decision === "APPROVED" ? "SP_APPROVED" : "SP_DISAPPROVED",
-          updatedAt: new Date().toISOString(),
-        });
-        setActiveTask(nextTask);
-        setTaskHistory((prev) => [...prev.map((t) => (t.id === completedTask.id ? completedTask : t)), nextTask]);
-      }
-      setIsProcessing(false);
-      toast.success(`SP Resolution #${resNo} recorded (${decision}). Docket returned to BPLO.`);
-    }, 500);
+      setApplication({
+        ...application,
+        currentDomain: "TREASURY",
+        status: "TREASURY_PAYMENT_PENDING",
+        updatedAt: new Date().toISOString(),
+      });
+      setActiveTask(treasuryTask);
+      setTaskHistory((prev) => [...prev.map((t) => (t.id === completedTask.id ? completedTask : t)), treasuryTask]);
+    }
+
+    setIsProcessing(false);
+    toast.success(`SP issued Renewal Billing ${billRef}! Docket submitted to Treasury for payment.`);
   };
 
-  // 8. BPLO: Final Release & Permit Issuance (Guard: SP Approved)
-  const handleFinalPermitRelease = () => {
-    if (spVotingResult !== "APPROVED") {
-      toast.error("Guard Failed: Cannot release permit without an APPROVED Sangguniang Panlungsod Resolution.");
+  // STEP 5: Treasury Checks Payment OK & Sends Back to SP for Printing
+  const handleTreasuryConfirmPayment = async () => {
+    if (!treasuryOrNumber.trim()) {
+      toast.error("Please provide an Official Receipt (OR) Number.");
       return;
     }
 
     setIsProcessing(true);
-    setTimeout(() => {
-      const permitNo = `TOP-TAG-2026-${String(bodyNumber).padStart(4, "0")}`;
-      setFinalPermitNumber(permitNo);
+    setTreasuryPaymentConfirmed(true);
 
-      if (application && activeTask) {
-        const completedTask: FranchiseTaskRecord = {
-          ...activeTask,
-          status: "COMPLETED",
-          completedAt: new Date().toISOString(),
-          remarks: `Sealed MTOP Permit #${permitNo} and official validation sticker released to operator.`,
-        };
+    if (application && activeTask) {
+      const completedTask: FranchiseTaskRecord = {
+        ...activeTask,
+        status: "COMPLETED",
+        completedAt: new Date().toISOString(),
+        remarks: `Treasury confirmed payment under OR #${treasuryOrNumber}. Sent back to SP for printing.`,
+      };
 
-        setApplication({
-          ...application,
-          status: "COMPLETED",
-          updatedAt: new Date().toISOString(),
-        });
-        setActiveTask(completedTask);
-        setTaskHistory((prev) => prev.map((t) => (t.id === completedTask.id ? completedTask : t)));
-      }
-      setIsProcessing(false);
-      toast.success(`MTOP Permit #${permitNo} officially released!`);
-    }, 450);
+      const spPrintTask: FranchiseTaskRecord = {
+        id: `task-${Date.now()}-sp-print`,
+        applicationId: application.id,
+        domain: "SP",
+        taskName: "Print Franchise Renewal & Add to Publication",
+        requiredRole: "STAFF",
+        status: "PENDING",
+        assignedUserId: null,
+        assignedUserName: null,
+        startedAt: null,
+        completedAt: null,
+        remarks: `Payment verified under OR #${treasuryOrNumber}. SP to print certificate and record publication.`,
+      };
+
+      setApplication({
+        ...application,
+        currentDomain: "SP",
+        status: "PAID_PENDING_PRINTING",
+        updatedAt: new Date().toISOString(),
+      });
+      setActiveTask(spPrintTask);
+      setTaskHistory((prev) => [...prev.map((t) => (t.id === completedTask.id ? completedTask : t)), spPrintTask]);
+    }
+
+    setIsProcessing(false);
+    toast.success(`Treasury confirmed payment OK under OR #${treasuryOrNumber}! Sent back to SP for printing.`);
   };
 
-  // Treasury Simulation: Simulate Payment & Webhook
-  const handleSimulatePayment = (type: "DELINQUENCY" | "LEGISLATIVE") => {
+  // STEP 6: SP Prints Franchise Renewal & Adds to Publication
+  const handleSPPrintAndPublish = async () => {
+    if (!treasuryPaymentConfirmed) {
+      toast.error("Guard Failed: Treasury payment must be confirmed before printing.");
+      return;
+    }
+
     setIsProcessing(true);
-    setTimeout(() => {
-      const orNum = `OR-TAG-2026-${Math.floor(100000 + Math.random() * 900000)}`;
-      if (type === "DELINQUENCY") {
-        setBploDelinquencyPaid(true);
-        setBploOrNumber(orNum);
-      } else {
-        setSpBillingPaid(true);
-        setSpOrNumber(orNum);
-      }
-      setIsProcessing(false);
-      toast.success(`Payment verified in eTRACS! Official Receipt #${orNum} recorded.`);
-    }, 400);
+    setSpPrinted(true);
+    setSpPublished(true);
+
+    if (application && activeTask) {
+      const updatedTask: FranchiseTaskRecord = {
+        ...activeTask,
+        status: "ASSIGNED",
+        remarks: `Franchise Renewal printed. Appended to ${spGazette}. Ready for final release.`,
+      };
+
+      setApplication({
+        ...application,
+        status: "SP_PRINTED_PUBLISHED",
+        updatedAt: new Date().toISOString(),
+      });
+      setActiveTask(updatedTask);
+    }
+
+    setIsProcessing(false);
+    toast.success("SP printed Franchise Renewal and recorded entry in Publication Gazette!");
+  };
+
+  // STEP 7: SP Releases the Franchise Renewal -> END
+  const handleSPReleaseRenewal = async () => {
+    if (!spPrinted || !spPublished) {
+      toast.error("Guard Failed: Certificate must be printed and added to publication before release.");
+      return;
+    }
+
+    setIsProcessing(true);
+    const nowStr = new Date().toISOString();
+    setSpReleased(true);
+    setReleasedAtTimestamp(nowStr);
+
+    if (application && activeTask) {
+      const completedTask: FranchiseTaskRecord = {
+        ...activeTask,
+        status: "COMPLETED",
+        completedAt: nowStr,
+        remarks: `SP officially released sealed Franchise Renewal to operator ${applicantDisplayName}. Term: 2026 - 2029.`,
+      };
+
+      setApplication({
+        ...application,
+        status: "COMPLETED",
+        updatedAt: nowStr,
+      });
+      setActiveTask(completedTask);
+      setTaskHistory((prev) => prev.map((t) => (t.id === completedTask.id ? completedTask : t)));
+    }
+
+    setIsProcessing(false);
+    toast.success(`SP successfully released Franchise Renewal for Body #${bodyNumber}! Workflow Completed.`);
   };
 
   return (
@@ -541,16 +544,16 @@ export function FranchiseApplication({
             )}
             {application && (
               <Badge className="bg-indigo-600 font-mono text-[11px]">
-                Status: {application.status}
+                Domain: {application.currentDomain} • {application.status}
               </Badge>
             )}
           </div>
           <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-indigo-400" />
-            LGU Multi-Department Franchise Workflow Engine
+            Franchise Renewal Lifecycle Engine
           </h2>
           <p className="text-xs text-slate-300 mt-0.5">
-            Applicant: <span className="font-semibold text-slate-100">{applicantDisplayName}</span> • Vehicle Plate:{" "}
+            Applicant: <span className="font-semibold text-slate-100">{applicantDisplayName}</span> • Unit Plate:{" "}
             <span className="font-mono text-amber-300">{vehiclePlateDisplay}</span>
           </p>
         </div>
@@ -567,539 +570,437 @@ export function FranchiseApplication({
         </div>
       </div>
 
-      {/* Case 1: No Active Application Exists */}
-      {!application && (
-        <Card className="border-dashed border-2 border-slate-300 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
-          <CardHeader className="text-center pb-3">
-            <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-2">
-              <PlusCircle className="w-6 h-6" />
-            </div>
-            <CardTitle className="text-lg">No Active Application for Franchise #{bodyNumber}</CardTitle>
-            <CardDescription className="max-w-md mx-auto text-xs">
-              Initialize a new municipal intake application to begin the multi-department routing sequence (CTMO Traffic Clearance &rarr; BPLO Vetting &rarr; SP Council Hearing &rarr; Treasury eTRACS).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex justify-center pb-6">
-            <Button
-              onClick={handleCaptureApplication}
-              disabled={isProcessing}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md font-medium"
-            >
-              {isProcessing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Initializing Intake...
-                </>
-              ) : (
-                <>
-                  <FileText className="w-4 h-4 mr-2" />
-                  Capture Application (Intake)
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Case 2: Active Multi-Department Workflow Running */}
-      {application && (
-        <>
-          {/* Domain-Driven Pipeline Stepper */}
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5" />
-              Inter-Departmental Municipal Pipeline & External eTRACS Boundary
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
-              {DOMAIN_STAGES.map((stage, idx) => {
-                const isCurrent = application.currentDomain === stage.domain;
-                return (
-                  <div
-                    key={stage.domain}
-                    className={`relative p-3.5 rounded-xl border text-left transition-all ${
-                      isCurrent
-                        ? "bg-indigo-50/90 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20 shadow-sm"
-                        : "bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-75"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-mono uppercase font-bold text-slate-500">
-                        Department {idx + 1}
-                      </span>
-                      {isCurrent ? (
-                        <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 animate-pulse" />
-                      ) : (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-slate-400" />
-                      )}
-                    </div>
-                    <div className="font-semibold text-xs text-slate-800 dark:text-slate-200">
-                      {stage.label}
-                    </div>
-                    <div className="text-[11px] text-slate-500 truncate mt-0.5">
-                      {stage.taskName}
-                    </div>
-                    <div className="mt-2 text-[10px] font-mono text-slate-400">
-                      Prereq: {stage.requiredRole}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+      {/* Domain-Driven Pipeline Stepper */}
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+            Municipal Renewal Workflow Pipeline (Republic Act No. 7160 / MTOP Framework)
           </div>
+          <span className="text-[11px] font-mono text-indigo-600 font-bold">6-Step Statutory Sequence</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+          {RENEWAL_PIPELINE_STAGES.map((stage, idx) => {
+            const isCurrent = application?.currentDomain === stage.domain;
+            return (
+              <div
+                key={stage.label}
+                className={`relative p-2.5 rounded-lg border text-left transition-all ${
+                  isCurrent
+                    ? "bg-indigo-50/90 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20 shadow-sm"
+                    : "bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-75"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-mono uppercase font-bold text-slate-500">
+                    Step {idx + 1}
+                  </span>
+                  {isCurrent ? (
+                    <Clock className="w-3 h-3 text-indigo-600 animate-pulse" />
+                  ) : (
+                    <CheckCircle2 className="w-3 h-3 text-slate-400" />
+                  )}
+                </div>
+                <div className="font-semibold text-[11px] text-slate-800 dark:text-slate-200 leading-tight">
+                  {stage.label}
+                </div>
+                <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                  {stage.taskName}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
-          {/* Department Control Panels */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid grid-cols-5 mb-4 text-xs">
-              <TabsTrigger value="workflow" className="text-xs">
-                Active Task
-              </TabsTrigger>
-              <TabsTrigger value="ctmo" className="text-xs">
-                1. CTMO Traffic
-              </TabsTrigger>
-              <TabsTrigger value="bplo" className="text-xs">
-                2. BPLO Vetting
-              </TabsTrigger>
-              <TabsTrigger value="sp" className="text-xs">
-                3. SP Council
-              </TabsTrigger>
-              <TabsTrigger value="etracs" className="text-xs">
-                4. eTRACS Ledger
-              </TabsTrigger>
-            </TabsList>
+      {/* Multi-Domain Interactive Control Center */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid grid-cols-6 mb-4 text-xs">
+          <TabsTrigger value="pipeline" className="text-xs">
+            1. Active Task
+          </TabsTrigger>
+          <TabsTrigger value="traffic" className="text-xs">
+            2. City Traffic
+          </TabsTrigger>
+          <TabsTrigger value="sp-res" className="text-xs">
+            3. SP Resolution
+          </TabsTrigger>
+          <TabsTrigger value="treasury" className="text-xs">
+            4. SP Billing / Treasury
+          </TabsTrigger>
+          <TabsTrigger value="sp-pub" className="text-xs">
+            5. SP Print & Gazette
+          </TabsTrigger>
+          <TabsTrigger value="sp-rel" className="text-xs">
+            6. SP Release (End)
+          </TabsTrigger>
+        </TabsList>
 
-            {/* TAB 1: Active Task Claim & Status */}
-            <TabsContent value="workflow">
-              {activeTask && (
-                <Card className="border-indigo-200 dark:border-indigo-900/60 shadow-md">
-                  <CardHeader className="bg-slate-50/80 dark:bg-slate-900/60 pb-3 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-indigo-600 hover:bg-indigo-600 text-white font-mono text-xs">
-                          Office: {activeTask.domain}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className={
-                            activeTask.status === "ASSIGNED"
-                              ? "border-amber-500 text-amber-600 bg-amber-50"
-                              : "border-slate-400 text-slate-600 bg-slate-100"
-                          }
-                        >
-                          {activeTask.status}
-                        </Badge>
-                      </div>
-                      <span className="text-xs text-slate-400 font-mono">Task ID: {activeTask.id}</span>
-                    </div>
-                    <CardTitle className="text-base mt-2 text-slate-900 dark:text-slate-100">
-                      {activeTask.taskName}
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Assigned Officer: <span className="font-semibold text-indigo-600">{activeTask.assignedUserName || "Unclaimed (In Queue)"}</span>
-                    </CardDescription>
-                  </CardHeader>
-
-                  <CardContent className="pt-4 space-y-3 text-xs">
-                    <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border text-slate-700 dark:text-slate-300">
-                      <div className="font-medium text-slate-500 mb-0.5">Instructions & Scope:</div>
-                      {activeTask.remarks || "No remarks."}
-                    </div>
-
-                    {currentUser.domain !== activeTask.domain && (
-                      <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center gap-2 text-amber-800 dark:text-amber-300">
-                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                        <div>
-                          Domain Isolation Active: You are logged in under <span className="font-bold">{currentUser.domain}</span>. Only members of <span className="font-bold">{activeTask.domain}</span> can claim or mutate this task.
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-
-                  <CardFooter className="bg-slate-50/50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-800 flex justify-between py-3">
-                    <div className="text-xs text-slate-400 font-mono">
-                      Target Domain: {activeTask.domain}
-                    </div>
-                    {activeTask.status === "PENDING" && (
-                      <Button
-                        onClick={handleAssignToMe}
-                        disabled={isProcessing || (currentUser.domain !== activeTask.domain && currentUser.role !== "ADMIN")}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8"
-                      >
-                        <UserCheck className="w-3.5 h-3.5 mr-1.5" />
-                        Assign to Me
-                      </Button>
-                    )}
-                  </CardFooter>
-                </Card>
-              )}
-            </TabsContent>
-
-            {/* TAB 2: CTMO Traffic */}
-            <TabsContent value="ctmo" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Car className="w-4 h-4 text-indigo-600" />
-                    City Traffic Management Office (CTMO) Clearance Engine
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Physical unit inspection, violation registry verification, and Traffic Clearance Certificate generation.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4 text-xs">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <label className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={ctmoEngineVerified}
-                        onChange={(e) => setCtmoEngineVerified(e.target.checked)}
-                        className="rounded"
-                      />
-                      <span>Engine & Chassis Verified</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={ctmoRoadworthy}
-                        onChange={(e) => setCtmoRoadworthy(e.target.checked)}
-                        className="rounded"
-                      />
-                      <span>Roadworthiness & Welding Passed</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={ctmoBrakesLights}
-                        onChange={(e) => setCtmoBrakesLights(e.target.checked)}
-                        className="rounded"
-                      />
-                      <span>Brakes, Lights & Meter Validated</span>
-                    </label>
-                  </div>
-
-                  <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-slate-700 dark:text-slate-300">Violation Registry Query</div>
-                      <div className="text-slate-500">Active unsettled tickets for plate {vehiclePlateDisplay}</div>
-                    </div>
-                    <Badge variant={ctmoViolationsCount === 0 ? "secondary" : "destructive"}>
-                      {ctmoViolationsCount} Unsettled Violations
+        {/* TAB 1: Active Task & Domain Overview */}
+        <TabsContent value="pipeline" className="space-y-4">
+          {activeTask ? (
+            <Card className="border-indigo-200 dark:border-indigo-900/60 shadow-md">
+              <CardHeader className="bg-slate-50/80 dark:bg-slate-900/60 pb-3 border-b">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-indigo-600 text-white font-mono text-xs">
+                      Target Office: {activeTask.domain}
+                    </Badge>
+                    <Badge variant={activeTask.status === "ASSIGNED" ? "secondary" : "outline"}>
+                      {activeTask.status}
                     </Badge>
                   </div>
+                  <span className="text-xs text-slate-400 font-mono">Task ID: {activeTask.id}</span>
+                </div>
+                <CardTitle className="text-base mt-2">{activeTask.taskName}</CardTitle>
+                <CardDescription className="text-xs">
+                  Assigned Officer: <span className="font-semibold text-indigo-600">{activeTask.assignedUserName || "Unclaimed (Pending in Department Queue)"}</span>
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-3 text-xs">
+                <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border text-slate-700 dark:text-slate-300">
+                  <div className="font-medium text-slate-500 mb-0.5">Task Objective & Routing Context:</div>
+                  {activeTask.remarks || "Queued in domain inbox."}
+                </div>
 
-                  {ctmoClearanceCert && (
-                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 rounded-lg text-emerald-800 dark:text-emerald-300">
-                      <div className="font-semibold flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        Traffic Clearance Certificate Issued: #{ctmoClearanceCert}
-                      </div>
-                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">
-                        Digitally verified by CTMO Examiner. Ready for BPLO intake handoff.
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-                <CardFooter className="flex justify-end gap-2 border-t pt-3">
-                  <Button
-                    onClick={handleIssueTrafficClearance}
-                    disabled={isProcessing || !!ctmoClearanceCert}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8"
-                  >
-                    {ctmoClearanceCert ? "Clearance Already Issued" : "Issue Traffic Clearance & Route to BPLO"}
-                  </Button>
-                </CardFooter>
-              </Card>
-            </TabsContent>
-
-            {/* TAB 3: BPLO Review & Delinquency */}
-            <TabsContent value="bplo" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-indigo-600" />
-                    BPLO Statutory Verification & Delinquency Assessment
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Confirm statutory requirements, calculate renewal delinquency, and endorse to Sangguniang Panlungsod.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4 text-xs">
-                  <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border space-y-2">
-                    <div className="font-semibold text-slate-700 dark:text-slate-300">Statutory Documents Checklist</div>
-                    <div className="grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-400">
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Barangay Clearance Verified
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Police / NBI Clearance Clean
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Third-Party Liability Insurance Active
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> LTO Official Receipt & Registration Verified
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border space-y-2">
-                    <div className="font-semibold text-slate-700 dark:text-slate-300">Renewal Delinquency Assessment</div>
-                    <div className="text-slate-500">Formula: Base Franchise Tax (2,000/yr) + 25% Surcharge + 2%/mo Penalty + 500 Filing Fee</div>
-                    <div className="flex items-center justify-between pt-2">
-                      <Button
-                        variant="outline"
-                        onClick={handleGenerateDelinquencyBill}
-                        disabled={isProcessing || !!bploDelinquencyBillRef}
-                        className="text-xs h-7"
-                      >
-                        Calculate & Dispatch Delinquency to eTRACS
-                      </Button>
-                      {bploDelinquencyBillRef && (
-                        <Badge variant={bploDelinquencyPaid ? "secondary" : "outline"} className="font-mono text-[11px]">
-                          {bploDelinquencyBillRef} ({bploDelinquencyPaid ? "PAID" : "UNPAID"})
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  {finalPermitNumber && (
-                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 rounded-lg text-emerald-800 dark:text-emerald-300">
-                      <div className="font-semibold flex items-center gap-1.5">
-                        <Award className="w-4 h-4 text-emerald-600" />
-                        Official MTOP Permit Released: #{finalPermitNumber}
-                      </div>
-                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">
-                        Valid for 3 years. Operator authorized to pick up physical permit plate.
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-                <CardFooter className="flex justify-end gap-2 border-t pt-3">
-                  <Button
-                    onClick={handleForwardToSP}
-                    disabled={isProcessing || !ctmoClearanceCert || (!!bploDelinquencyBillRef && !bploDelinquencyPaid)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8"
-                  >
-                    Forward to Sangguniang Panlungsod (SP)
-                  </Button>
-                  <Button
-                    onClick={handleFinalPermitRelease}
-                    disabled={isProcessing || spVotingResult !== "APPROVED" || !!finalPermitNumber}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8"
-                  >
-                    Release Final MTOP Permit & Sticker
-                  </Button>
-                </CardFooter>
-              </Card>
-            </TabsContent>
-
-            {/* TAB 4: SP Council Hearing */}
-            <TabsContent value="sp" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Scale className="w-4 h-4 text-indigo-600" />
-                    Sangguniang Panlungsod (City Council) Legislative Engine
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Legislative franchise tax billing, session agenda, council resolution vote, and certificate issuance.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4 text-xs">
-                  <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border flex items-center justify-between">
+                {currentUser.domain !== activeTask.domain && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 rounded-lg flex items-center gap-2 text-amber-800 text-xs">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
                     <div>
-                      <div className="font-semibold text-slate-700 dark:text-slate-300">1. Legislative Fee Assessment</div>
-                      <div className="text-slate-500">Franchise Fee (6,000) + Mayor's Permit (1,500) + Plate (350) + Sanitary (250) = 8,100 PHP</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={handleGenerateSpBilling}
-                        disabled={isProcessing || !!spBillingRef}
-                        className="text-xs h-7"
-                      >
-                        Dispatch eTRACS Bill
-                      </Button>
-                      {spBillingRef && (
-                        <Badge variant={spBillingPaid ? "secondary" : "outline"} className="font-mono text-[11px]">
-                          {spBillingRef} ({spBillingPaid ? "PAID" : "UNPAID"})
-                        </Badge>
-                      )}
+                      Department Boundary: Active task belongs to <span className="font-bold">{activeTask.domain}</span>. Only officers assigned to this department may advance the state.
                     </div>
                   </div>
-
-                  <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border space-y-2">
-                    <div className="font-semibold text-slate-700 dark:text-slate-300">2. Order of the Day & Session Docket</div>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="date"
-                        value={spOrderDate}
-                        onChange={(e) => setSpOrderDate(e.target.value)}
-                        className="text-xs h-8 max-w-[200px]"
-                      />
-                      <span className="text-slate-400">Regular Session Docket #2026-09</span>
-                    </div>
-                  </div>
-
-                  {spResolutionNo && (
-                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 rounded-lg text-emerald-800 dark:text-emerald-300">
-                      <div className="font-semibold flex items-center gap-1.5">
-                        <Award className="w-4 h-4 text-emerald-600" />
-                        SP Resolution #{spResolutionNo} ({spVotingResult})
-                      </div>
-                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">
-                        Signed by SP Presiding Officer. Appended to Official Publication Gazette.
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-                <CardFooter className="flex justify-end gap-2 border-t pt-3">
+                )}
+              </CardContent>
+              <CardFooter className="flex justify-between border-t pt-3">
+                <span className="text-xs text-slate-400 font-mono">Role Required: {activeTask.requiredRole}</span>
+                {activeTask.status === "PENDING" && (
                   <Button
-                    onClick={() => handleCouncilVote("APPROVED")}
-                    disabled={isProcessing || !spBillingPaid || !!spResolutionNo}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8"
+                    size="sm"
+                    onClick={handleAssignToMe}
+                    disabled={isProcessing || (currentUser.domain !== activeTask.domain && currentUser.role !== "ADMIN")}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
                   >
-                    Approve Resolution & Certificate
+                    <UserCheck className="w-3.5 h-3.5 mr-1.5" />
+                    Assign to Me
                   </Button>
-                  <Button
-                    onClick={() => handleCouncilVote("DISAPPROVED")}
-                    disabled={isProcessing || !spBillingPaid || !!spResolutionNo}
-                    variant="destructive"
-                    className="text-xs h-8"
-                  >
-                    Disapprove
-                  </Button>
-                </CardFooter>
-              </Card>
-            </TabsContent>
+                )}
+              </CardFooter>
+            </Card>
+          ) : (
+            <Card className="text-center p-6 text-xs text-slate-500">
+              No active task currently assigned.
+            </Card>
+          )}
+        </TabsContent>
 
-            {/* TAB 5: eTRACS Treasury Interceptor */}
-            <TabsContent value="etracs" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-indigo-600" />
-                    eTRACS Treasury Ledger & Interceptor Gateway
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    External system boundary simulating Treasury billing ingestion, cashier payment webhooks, and Official Receipt (OR) reconciliation.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4 text-xs">
-                  <div className="space-y-3">
-                    {/* Delinquency Bill Card */}
-                    {bploDelinquencyBillRef && (
-                      <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border flex items-center justify-between">
-                        <div>
-                          <div className="font-semibold text-slate-800 dark:text-slate-200">
-                            BPLO Delinquency Bill: {bploDelinquencyBillRef}
-                          </div>
-                          <div className="text-slate-500">Account: 4-01-01-080 • Total: 4,000.00 PHP</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {bploDelinquencyPaid ? (
-                            <Badge className="bg-emerald-600 text-white font-mono text-[11px]">
-                              Paid (OR #{bploOrNumber})
-                            </Badge>
-                          ) : (
-                            <Button
-                              size="sm"
-                              onClick={() => handleSimulatePayment("DELINQUENCY")}
-                              disabled={isProcessing}
-                              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-7"
-                            >
-                              Simulate Cashier Payment & Webhook
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    )}
+        {/* TAB 2: City Traffic Clearance */}
+        <TabsContent value="traffic" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Car className="w-4 h-4 text-indigo-600" />
+                Step 2: City Traffic Management Office (CTMO) Clearance
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Physical roadworthiness inspection, chassis/engine matching, and violation clearance before SP council submission.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <label className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ctmoEngineVerified}
+                    onChange={(e) => setCtmoEngineVerified(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>Engine & Chassis Verified</span>
+                </label>
+                <label className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ctmoRoadworthy}
+                    onChange={(e) => setCtmoRoadworthy(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>Roadworthiness Inspection Passed</span>
+                </label>
+                <label className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ctmoBrakesLights}
+                    onChange={(e) => setCtmoBrakesLights(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>Brakes, Lights & Meter Validated</span>
+                </label>
+              </div>
 
-                    {/* SP Legislative Bill Card */}
-                    {spBillingRef && (
-                      <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border flex items-center justify-between">
-                        <div>
-                          <div className="font-semibold text-slate-800 dark:text-slate-200">
-                            SP Legislative Assessment: {spBillingRef}
-                          </div>
-                          <div className="text-slate-500">Account: 4-01-01-080 • Total: 8,100.00 PHP</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {spBillingPaid ? (
-                            <Badge className="bg-emerald-600 text-white font-mono text-[11px]">
-                              Paid (OR #{spOrNumber})
-                            </Badge>
-                          ) : (
-                            <Button
-                              size="sm"
-                              onClick={() => handleSimulatePayment("LEGISLATIVE")}
-                              disabled={isProcessing}
-                              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-7"
-                            >
-                              Simulate Cashier Payment & Webhook
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    )}
+              <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-slate-700 dark:text-slate-300">City Traffic Violation Registry</div>
+                  <div className="text-slate-500">Active tickets for plate {vehiclePlateDisplay}</div>
+                </div>
+                <Badge variant={ctmoViolationsCount === 0 ? "secondary" : "destructive"}>
+                  {ctmoViolationsCount} Unsettled Violations
+                </Badge>
+              </div>
 
-                    {!bploDelinquencyBillRef && !spBillingRef && (
-                      <div className="p-6 text-center text-slate-400 border border-dashed rounded-lg">
-                        No billing statements dispatched to eTRACS Treasury yet. Trigger an assessment in BPLO or SP.
-                      </div>
-                    )}
+              {ctmoClearanceCert && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 rounded-lg text-emerald-800 text-xs">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    Traffic Clearance Certificate Issued: #{ctmoClearanceCert}
                   </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-
-          {/* Audit Trail & Task Log */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-              <History className="w-3.5 h-3.5 text-slate-500" />
-              Immutable Task Transition Audit Log ({taskHistory.length})
-            </h3>
-
-            <div className="space-y-2">
-              {taskHistory.map((task) => (
-                <div
-                  key={task.id}
-                  className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
-                >
-                  <div className="flex items-center gap-3">
-                    <Badge variant="outline" className="font-mono text-[10px]">
-                      {task.domain}
-                    </Badge>
-                    <div>
-                      <div className="font-semibold text-slate-800 dark:text-slate-200">{task.taskName}</div>
-                      <div className="text-[11px] text-slate-500">
-                        Officer: {task.assignedUserName || "Unassigned"} • Status: {task.status}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right text-[11px] text-slate-400 font-mono">
-                    {task.completedAt ? (
-                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                        Completed: {new Date(task.completedAt).toLocaleTimeString()}
-                      </span>
-                    ) : task.startedAt ? (
-                      <span className="text-amber-600 dark:text-amber-400 font-medium">
-                        In Progress: {new Date(task.startedAt).toLocaleTimeString()}
-                      </span>
-                    ) : (
-                      "Queued"
-                    )}
+                  <div className="text-[11px] text-emerald-600 mt-0.5">
+                    Clearance verified by CTMO Officer. Docket submitted to Sangguniang Panlungsod for Franchise Resolution.
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
+              )}
+            </CardContent>
+            <CardFooter className="flex justify-end gap-2 border-t pt-3">
+              <Button
+                onClick={handleIssueClearanceAndSubmitToSP}
+                disabled={isProcessing || !!ctmoClearanceCert}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
+              >
+                {ctmoClearanceCert ? "Clearance Issued & Submitted to SP" : "Issue Clearance & Submit to SP for Franchise Resolution"}
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 3: SP Resolution */}
+        <TabsContent value="sp-res" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Scale className="w-4 h-4 text-indigo-600" />
+                Step 3: Sangguniang Panlungsod (SP) Franchise Resolution
+              </CardTitle>
+              <CardDescription className="text-xs">
+                City Council review of CTMO clearance docket and legislative enactment of the Franchise Renewal Resolution.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Resolution Number</Label>
+                  <Input
+                    value={spResNumber}
+                    onChange={(e) => setSpResNumber(e.target.value)}
+                    placeholder="e.g. SP-RES-2026-042"
+                    className="text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Resolution Enactment Date</Label>
+                  <Input
+                    type="date"
+                    value={spResDate}
+                    onChange={(e) => setSpResDate(e.target.value)}
+                    className="text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Legislative Session</Label>
+                  <Input
+                    value={spSessionNumber}
+                    onChange={(e) => setSpSessionNumber(e.target.value)}
+                    className="text-xs"
+                  />
+                </div>
+              </div>
+
+              {spResolutionIssued && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 rounded-lg text-emerald-800 text-xs">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    SP Resolution #{spResNumber} Enacted for Franchise Renewal
+                  </div>
+                  <div className="text-[11px] text-emerald-600 mt-0.5">
+                    Resolution officially recorded in Sangguniang Panlungsod legislative journal on {spResDate}.
+                  </div>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="flex justify-end gap-2 border-t pt-3">
+              <Button
+                onClick={handleIssueSPResolution}
+                disabled={isProcessing || spResolutionIssued || !ctmoClearanceCert}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
+              >
+                {spResolutionIssued ? "Resolution Already Issued" : "Issue SP Resolution for Renewal"}
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 4: SP Billing & Treasury */}
+        <TabsContent value="treasury" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-indigo-600" />
+                Step 4: SP Renewal Billing & Treasury Payment Check
+              </CardTitle>
+              <CardDescription className="text-xs">
+                SP issues franchise renewal billing (₱6,000 for 3 years + municipal regulatory fees) & submits to Treasury. Treasury checks payment OK & returns to SP.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-xs">
+              <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border space-y-2">
+                <div className="font-semibold text-slate-800 dark:text-slate-200">
+                  Standard Franchise Renewal Schedule of Fees (3-Year Term)
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-slate-600">
+                  <div>Franchise Fee: ₱6,000.00</div>
+                  <div>Mayor's Permit: ₱1,500.00</div>
+                  <div>Metal Plate/Sticker: ₱350.00</div>
+                  <div>Health/Sanitary: ₱250.00</div>
+                </div>
+                <div className="font-bold text-indigo-600 pt-1">
+                  Total Municipal Assessment: ₱8,600.00
+                </div>
+              </div>
+
+              {!spRenewalBillingRef ? (
+                <div className="flex justify-end">
+                  <Button
+                    onClick={handleIssueSPBillingAndSubmitToTreasury}
+                    disabled={isProcessing || !spResolutionIssued}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
+                  >
+                    Issue SP Billing & Submit to Treasury for Payment
+                  </Button>
+                </div>
+              ) : (
+                <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs space-y-2">
+                  <div className="font-semibold text-indigo-900 flex items-center gap-1.5">
+                    <Receipt className="w-4 h-4 text-indigo-600" />
+                    SP Billing Issued: {spRenewalBillingRef} (Dispatched to Treasury)
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Treasury Official Receipt (OR) Number</Label>
+                      <Input
+                        value={treasuryOrNumber}
+                        onChange={(e) => setTreasuryOrNumber(e.target.value)}
+                        placeholder="e.g. OR-TAG-2026-881920"
+                        className="text-xs"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <Button
+                        onClick={handleTreasuryConfirmPayment}
+                        disabled={isProcessing || treasuryPaymentConfirmed}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs w-full"
+                      >
+                        {treasuryPaymentConfirmed
+                          ? `Payment Verified (OR #${treasuryOrNumber})`
+                          : "Treasury: Confirm Payment OK & Send Back to SP"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 5: SP Printing & Publication */}
+        <TabsContent value="sp-pub" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Printer className="w-4 h-4 text-indigo-600" />
+                Step 5: SP Prints Franchise Renewal & Adds to Publication
+              </CardTitle>
+              <CardDescription className="text-xs">
+                After receiving paid docket back from Treasury, SP prints the Certificate of Franchise Renewal and records in the official municipal publication gazette.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-xs">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">Official Publication Gazette / Bulletin Reference</Label>
+                <Input
+                  value={spGazette}
+                  onChange={(e) => setSpGazette(e.target.value)}
+                  className="text-xs"
+                />
+              </div>
+
+              {spPrinted && spPublished && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 rounded-lg text-emerald-800 text-xs">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    Franchise Renewal Printed & Appended to Publication Gazette
+                  </div>
+                  <div className="text-[11px] text-emerald-600 mt-0.5">
+                    Recorded in {spGazette}. Ready for final physical release.
+                  </div>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="flex justify-end gap-2 border-t pt-3">
+              <Button
+                onClick={handleSPPrintAndPublish}
+                disabled={isProcessing || !treasuryPaymentConfirmed || spPrinted}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
+              >
+                <BookOpen className="w-3.5 h-3.5 mr-1.5" />
+                {spPrinted ? "Certificate Printed & Published" : "Print Franchise Renewal & Add to Publication"}
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 6: SP Release (End) */}
+        <TabsContent value="sp-rel" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Award className="w-4 h-4 text-emerald-600" />
+                Step 6: SP Releases Franchise Renewal (Workflow End)
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Final legislative seal and release of the Franchise Renewal Certificate to the operator.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-xs">
+              {spReleased ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl space-y-2 text-emerald-900">
+                  <div className="text-base font-bold flex items-center gap-2 text-emerald-700">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    Franchise Renewal Officially Released!
+                  </div>
+                  <div className="text-xs text-emerald-800">
+                    Body #{bodyNumber} ({applicantDisplayName}) has been renewed for 3 years (2026 - 2029).
+                  </div>
+                  <div className="text-[11px] font-mono text-emerald-700 pt-1">
+                    Released By: {currentUser.name} • SP Resolution: #{spResNumber} • OR: #{treasuryOrNumber}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border text-slate-600">
+                  Ready for physical certificate releasing. Please ensure all prior steps (Traffic Clearance, SP Resolution, Treasury Payment, Printing & Publication) are satisfied.
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="flex justify-end gap-2 border-t pt-3">
+              <Button
+                onClick={handleSPReleaseRenewal}
+                disabled={isProcessing || !spPrinted || spReleased}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+              >
+                <Award className="w-3.5 h-3.5 mr-1.5" />
+                {spReleased ? "Franchise Released (Completed)" : "SP Release Franchise Renewal"}
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
-
-export default FranchiseApplication;

@@ -23,6 +23,13 @@ export async function proxy(request: NextRequest) {
       if (response.ok) {
         const data = await response.json();
         if (data && data.session) {
+          if (data.user?.isActive === false) {
+            const redirectRes = NextResponse.redirect(
+              new URL("/login?error=account_disabled", request.url)
+            );
+            redirectRes.cookies.delete("better-auth.session_token");
+            return redirectRes;
+          }
           isAuthenticated = true;
           userRole = data.user?.role || "USER";
         }

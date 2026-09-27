@@ -238,7 +238,7 @@ export function ItemAccountList({ accounts }: { accounts: any[] }) {
                 <Label htmlFor="edit_fund">Fund Type</Label>
                 <Select
                   value={formData.fundtype}
-                  onValueChange={(value) => setFormData({ ...formData, fundtype: value })}
+                  onValueChange={(value) => setFormData({ ...formData, fundtype: value || "" })}
                 >
                   <SelectTrigger id="edit_fund">
                     <SelectValue />

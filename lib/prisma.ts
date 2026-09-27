@@ -11,6 +11,17 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+// Auto-invalidate stale cached Prisma instance if schema was updated during development
+if (
+  globalForPrisma.prisma &&
+  (!(globalForPrisma.prisma as any).domain ||
+    !(globalForPrisma.prisma as any)._runtimeDataModel?.models?.User?.fields?.some(
+      (f: any) => f.name === "isActive"
+    ))
+) {
+  globalForPrisma.prisma = undefined;
+}
+
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

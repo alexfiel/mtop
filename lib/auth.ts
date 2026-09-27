@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { APIError } from "better-auth/api";
 import { prisma } from "./prisma";
 import { sendPasswordResetEmail } from "./email";
 
@@ -16,6 +17,41 @@ export const auth = betterAuth({
   trustedOrigins: ["http://localhost:3000"],
   user: {
     additionalFields: {
+      isActive: {
+        type: "boolean",
+        defaultValue: true,
+        required: false,
+        returned: true,
+        input: false,
+      },
+      disabledAt: {
+        type: "date",
+        required: false,
+        returned: true,
+        input: false,
+      },
+      disabledReason: {
+        type: "string",
+        required: false,
+        returned: true,
+        input: false,
+      },
+    },
+  },
+  databaseHooks: {
+    session: {
+      create: {
+        async before(session) {
+          const user = await prisma.user.findUnique({
+            where: { id: session.userId },
+          });
+          if (user && (user as any).isActive === false) {
+            throw new APIError("FORBIDDEN", {
+              message: "Your account has been disabled by the Super Admin. Please contact the administrator for assistance.",
+            });
+          }
+        },
+      },
     },
   },
   session: {

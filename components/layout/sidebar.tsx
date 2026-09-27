@@ -4,12 +4,14 @@ import { auth } from "@/lib/auth";
 import {
   LayoutDashboard,
   Users,
+  UserCheck,
   FileText,
   AlertTriangle,
   Car,
   Settings,
   ChevronRight,
-  Hash
+  Hash,
+  Layers,
 } from "lucide-react";
 import {
   Collapsible,
@@ -69,49 +71,39 @@ export async function Sidebar() {
 
               <SidebarMenuItem>
                 <SidebarMenuButton render={
-                  <Link href="/driver">
-                    <Users />
-                    <span>Drivers & Operators</span>
+                  <Link href="/franchise">
+                    <FileText />
+                    <span>Franchise</span>
                   </Link>
                 } />
               </SidebarMenuItem>
 
-              <Collapsible defaultOpen className="group/collapsible">
-                <SidebarMenuItem>
-                  <CollapsibleTrigger render={
-                    <SidebarMenuButton>
-                      <FileText />
-                      <span>Franchises</span>
-                      <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90 group-data-[panel-open]/collapsible:rotate-90" />
-                    </SidebarMenuButton>
-                  } />
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton render={<Link href="/franchises"><span>List of Franchises</span></Link>} />
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton render={<Link href="/franchise-application"><span>Application Workflow</span></Link>} />
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton render={<Link href="/franchises/new"><span>New Application</span></Link>} />
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton render={<Link href="/franchises/renewal"><span>Renewal</span></Link>} />
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton render={<Link href="/franchises/expired"><span>Expired Franchises</span></Link>} />
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton render={<Link href="/franchises/dropping"><span>Dropping</span></Link>} />
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton render={<Link href="/franchises/reports"><span>Reports</span></Link>} />
-                      </SidebarMenuSubItem>
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </SidebarMenuItem>
-              </Collapsible>
+              <SidebarMenuItem>
+                <SidebarMenuButton render={
+                  <Link href="/franchise-application">
+                    <Layers />
+                    <span>Franchise Application</span>
+                  </Link>
+                } />
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton render={
+                  <Link href="/operator">
+                    <UserCheck />
+                    <span>Operators</span>
+                  </Link>
+                } />
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton render={
+                  <Link href="/driver">
+                    <Users />
+                    <span>Drivers</span>
+                  </Link>
+                } />
+              </SidebarMenuItem>
 
               <SidebarMenuItem>
                 <SidebarMenuButton render={
@@ -161,6 +153,9 @@ export async function Sidebar() {
                       <SidebarMenuSub>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton render={<Link href="/users"><span>List of Users</span></Link>} />
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton render={<Link href="/users?tab=domains"><span>Domains & Offices</span></Link>} />
                         </SidebarMenuSubItem>
                       </SidebarMenuSub>
                     </CollapsibleContent>

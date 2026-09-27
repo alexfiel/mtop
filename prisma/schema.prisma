@@ -15,9 +15,12 @@ model User {
   name          String
   email         String   @unique
   emailVerified Boolean  @default(false)
-  image         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  image          String?
+  isActive       Boolean   @default(true)
+  disabledAt     DateTime?
+  disabledReason String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   // Roles Relationship
   roles UserRole[]
@@ -38,10 +41,25 @@ model UserProfile {
   jobTitle    String?
   department  String?
   office      String?
+  domainId    String?
+  domain      Domain?   @relation(fields: [domainId], references: [id], onDelete: SetNull)
   dateOfBirth DateTime?
   address     String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+model Domain {
+  id                 String        @id @default(cuid())
+  code               String        @unique // e.g. "BPLO", "TRAFFIC", "SP", "TREASURY", "EXECUTIVE", "LEGAL"
+  name               String        // e.g. "Business Permit & Licensing Office"
+  description        String?
+  type               String        @default("WORKFLOW") // "WORKFLOW", "DEPARTMENT", "OFFICE"
+  allowedEmailDomain String?       // e.g. "tagbilaran.gov.ph", "mtop.gov.ph"
+  isActive           Boolean       @default(true)
+  users              UserProfile[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 }
 
 model Session {
@@ -200,6 +218,9 @@ model NewFranchise {
   isActive Boolean @default(false)
   isAssigned Boolean @default(false)
   assignedDate DateTime?
+  lastRenewalYear Int?
+  priorResolutionNo String?
+  priorResolutionDate DateTime?
   remarks String?    
 }
 
@@ -274,6 +295,9 @@ model FranchiseApplication {
   mtopNo         String?         @unique
   appyear        Int
   apptype        String
+  lastRenewalYear Int?
+  priorResolutionNo String?
+  priorResolutionDate DateTime?
   resolutionNo   String?
   resolutionDate DateTime?
   remarks        String?
@@ -281,6 +305,10 @@ model FranchiseApplication {
   currentDomain  String          @default("TRAFFIC") // TRAFFIC, BPLO, SP, TREASURY
   approvedBy     String?
   approvedDate   DateTime?
+  publishedAt    DateTime?
+  publicationGazette String?
+  releasedAt     DateTime?
+  releasedBy     String?
   taskId         String?
   task           FranchiseTasks? @relation(fields: [taskId], references: [id])
   createdAt      DateTime        @default(now())
@@ -369,8 +397,8 @@ model FranchiseTasks {
   office       String
   taskname     String
   taskdesc     String
-  userId       String
-  user         User                   @relation(fields: [userId], references: [id])
+  userId       String?
+  user         User?                  @relation(fields: [userId], references: [id])
   createdAt    DateTime               @default(now())
   updatedAt    DateTime               @updatedAt
   applications FranchiseApplication[]

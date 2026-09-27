@@ -96,7 +96,7 @@ export function ItemAccountForm() {
               <Label htmlFor="fundtype">Fund Type</Label>
               <Select
                 value={formData.fundtype}
-                onValueChange={(value) => setFormData({ ...formData, fundtype: value })}
+                onValueChange={(value) => setFormData({ ...formData, fundtype: value || "" })}
               >
                 <SelectTrigger id="fundtype">
                   <SelectValue placeholder="Select Fund Type" />

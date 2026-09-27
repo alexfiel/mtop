@@ -191,7 +191,7 @@ export function BillingModal({ isOpen, onClose, franchise, onSuccess }: BillingM
                 )}
                 
                 <div className="flex gap-2 items-center mt-2 p-3 bg-muted/30 rounded-md border border-dashed">
-                  <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                  <Select value={selectedAccountId} onValueChange={(val) => setSelectedAccountId(val || "")}>
                     <SelectTrigger className="flex-1 bg-background">
                       <SelectValue placeholder="Select an item account to add..." />
                     </SelectTrigger>

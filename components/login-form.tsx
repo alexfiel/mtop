@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -15,12 +15,15 @@ import { Input } from "@/components/ui/input"
 import { authClient } from "@/lib/auth-client"
 import { toast } from "sonner"
 import Link from "next/link"
+import { AlertCircle } from "lucide-react"
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isAccountDisabled = searchParams.get("error") === "account_disabled"
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -64,6 +67,18 @@ export function LoginForm({
                   Login to the MTOP Management System
                 </p>
               </div>
+
+              {isAccountDisabled && (
+                <div className="p-3 text-sm rounded-lg bg-destructive/15 text-destructive border border-destructive/30 flex items-start gap-2.5">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div className="space-y-0.5">
+                    <p className="font-semibold">Account Access Disabled</p>
+                    <p className="text-xs opacity-90">
+                      Your access has been revoked by the Super Admin. Please contact the administrator for assistance.
+                    </p>
+                  </div>
+                </div>
+              )}
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
